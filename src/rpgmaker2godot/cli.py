@@ -1,6 +1,6 @@
 import argparse
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
 
 from .analysis.detector import TilesetDetector
 
@@ -47,11 +47,22 @@ def main() -> None:
     for sheet in result.sheets:
         groups[sheet.prefix].append(sheet)
 
-    for prefix, sheets in groups.items():
+    sheet_order = {
+        "A5": 0,
+        "B": 1,
+        "C": 2,
+        "D": 3,
+        "E": 4,
+    }
+
+    for prefix, sheets in sorted(groups.items()):
         print()
         print(f"  {prefix or '(no prefix)'}")
 
-        for sheet in sheets:
+        for sheet in sorted(
+            sheets,
+            key=lambda sheet: sheet_order[sheet.sheet_type.value],
+        ):
             print(
                 f"    {sheet.sheet_type.value}.png "
                 f"{sheet.width:>4}x{sheet.height:<4} "

@@ -12,7 +12,9 @@ license = { file = "LICENSE" }
 authors = [
     { name = "ultra-sonic-28" }
 ]
-dependencies = []
+dependencies = [
+    "Pillow>=11.0",
+]
 
 [project.scripts]
 rpgmaker2godot = "rpgmaker2godot.cli:main"

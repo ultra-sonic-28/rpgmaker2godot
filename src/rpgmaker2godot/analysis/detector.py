@@ -2,7 +2,13 @@ from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
 
-from .models import AnalysisResult, RPGMakerVersion, SheetInfo, SheetType
+from rpgmaker2godot.model import SheetType
+
+from .models import (
+    AnalysisResult,
+    RPGMakerVersion,
+    SheetInfo,
+)
 
 import re
 

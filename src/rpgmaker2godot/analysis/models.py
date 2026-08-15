@@ -2,14 +2,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
-
-class SheetType(Enum):
-    A5 = "A5"
-    B = "B"
-    C = "C"
-    D = "D"
-    E = "E"
-
+from rpgmaker2godot.model import SheetType
 
 class RPGMakerVersion(Enum):
     UNKNOWN = "unknown"

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 
 from rpgmaker2godot.model import TileRef
 
@@ -6,8 +7,16 @@ from rpgmaker2godot.model import TileRef
 @dataclass(frozen=True)
 class AtlasPlacement:
     tile: TileRef
-    x: int
-    y: int
+
+    source_path: Path
+    source_x: int
+    source_y: int
+
+    atlas_x: int
+    atlas_y: int
+
+    width: int
+    height: int
 
 
 @dataclass(frozen=True)

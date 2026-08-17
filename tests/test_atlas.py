@@ -59,25 +59,33 @@ def test_builds_explicit_tile_mapping() -> None:
         sheet_type=SheetType.B,
         index=0,
     )
-    assert (placement_0.x, placement_0.y) == (0, 0)
+    assert placement_0.source_path == Path("Inside_B.png")
+    assert (placement_0.atlas_x, placement_0.atlas_y) == (0, 0)
+    assert (placement_0.width, placement_0.height) == (48, 48)
 
     assert placement_1.tile == TileRef(
         tileset="Inside",
         sheet_type=SheetType.B,
         index=1,
     )
-    assert (placement_1.x, placement_1.y) == (48, 0)
+    assert placement_1.source_path == Path("Inside_B.png")
+    assert (placement_1.atlas_x, placement_1.atlas_y) == (48, 0)
+    assert (placement_1.width, placement_1.height) == (48, 48)
 
     assert placement_2.tile == TileRef(
         tileset="Inside",
         sheet_type=SheetType.B,
         index=2,
     )
-    assert (placement_2.x, placement_2.y) == (0, 48)
+    assert placement_2.source_path == Path("Inside_B.png")
+    assert (placement_2.atlas_x, placement_2.atlas_y) == (0, 48)
+    assert (placement_2.width, placement_2.height) == (48, 48)
 
     assert placement_3.tile == TileRef(
         tileset="Inside",
         sheet_type=SheetType.B,
         index=3,
     )
-    assert (placement_3.x, placement_3.y) == (48, 48)
+    assert placement_3.source_path == Path("Inside_B.png")
+    assert (placement_3.atlas_x, placement_3.atlas_y) == (48, 48)
+    assert (placement_3.width, placement_3.height) == (48, 48)

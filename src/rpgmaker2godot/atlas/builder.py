@@ -12,8 +12,13 @@ class AtlasBuilder:
         placements = tuple(
             AtlasPlacement(
                 tile=tile.ref,
-                x=tile.column * sheet.tile_width,
-                y=tile.row * sheet.tile_height,
+                source_path=sheet.source_path,
+                source_x=tile.x,
+                source_y=tile.y,
+                atlas_x=tile.column * sheet.tile_width,
+                atlas_y=tile.row * sheet.tile_height,
+                width=tile.width,
+                height=tile.height,
             )
             for tile in sheet.tiles
         )

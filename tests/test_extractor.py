@@ -3,7 +3,8 @@ from pathlib import Path
 from PIL import Image
 
 from rpgmaker2godot.image import ImageSource, TileExtractor
-from rpgmaker2godot.model import Tile
+from rpgmaker2godot.model import Tile, TileRef
+from rpgmaker2godot.model.enums import SheetType
 
 
 def test_extracts_tile(tmp_path: Path) -> None:
@@ -16,7 +17,11 @@ def test_extracts_tile(tmp_path: Path) -> None:
     source = ImageSource(path)
 
     tile = Tile(
-        index=17,
+        ref=TileRef(
+            tileset="Inside",
+            sheet_type=SheetType.B,
+            index=17,
+        ),
         column=1,
         row=2,
         x=48,
@@ -51,7 +56,11 @@ def test_extracts_correct_region(tmp_path: Path) -> None:
     source = ImageSource(path)
 
     tile = Tile(
-        index=3,
+        ref=TileRef(
+            tileset="Inside",
+            sheet_type=SheetType.B,
+            index=3,
+        ),
         column=1,
         row=1,
         x=48,

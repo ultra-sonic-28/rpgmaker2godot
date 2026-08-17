@@ -7,15 +7,13 @@ from rpgmaker2godot.model import (
     Sheet,
     Tile,
     Tileset,
+    TileRef,
 )
+from rpgmaker2godot.model.enums import SheetType
 
 
 class SimpleConverter:
-    """Convert an AnalysisResult into the internal representation.
-
-    The simple converter currently handles regular 48x48 RPG Maker
-    sheets only. It does not decode autotiles or manipulate image data.
-    """
+    """Convert an AnalysisResult into the internal representation."""
 
     def convert(self, analysis: AnalysisResult) -> ConversionResult:
         grouped_sheets: dict[str, list[SheetInfo]] = defaultdict(list)
@@ -27,10 +25,13 @@ class SimpleConverter:
 
         for name, sheet_infos in sorted(grouped_sheets.items()):
             sheets = tuple(
-                self._convert_sheet(sheet_info)
+                self._convert_sheet(
+                    name,
+                    sheet_info,
+                )
                 for sheet_info in sorted(
                     sheet_infos,
-                    key=lambda sheet: self._sheet_order(sheet),
+                    key=self._sheet_order,
                 )
             )
 
@@ -45,9 +46,15 @@ class SimpleConverter:
             tilesets=tuple(tilesets),
         )
 
-    def _convert_sheet(self, sheet_info: SheetInfo) -> Sheet:
+    def _convert_sheet(
+        self,
+        tileset_name: str,
+        sheet_info: SheetInfo,
+    ) -> Sheet:
         tiles = tuple(
             self._create_tile(
+                tileset_name=tileset_name,
+                sheet_type=sheet_info.sheet_type,
                 index=index,
                 column=column,
                 row=row,
@@ -78,13 +85,15 @@ class SimpleConverter:
     def _tile_coordinates(
         columns: int,
         rows: int,
-    ) -> Iterator[tuple[int, int]]:
+    ):
         for row in range(rows):
             for column in range(columns):
                 yield row, column
 
     @staticmethod
     def _create_tile(
+        tileset_name: str,
+        sheet_type: SheetType,
         index: int,
         column: int,
         row: int,
@@ -92,7 +101,11 @@ class SimpleConverter:
         tile_height: int,
     ) -> Tile:
         return Tile(
-            index=index,
+            ref=TileRef(
+                tileset=tileset_name,
+                sheet_type=sheet_type,
+                index=index,
+            ),
             column=column,
             row=row,
             x=column * tile_width,
@@ -104,11 +117,11 @@ class SimpleConverter:
     @staticmethod
     def _sheet_order(sheet_info: SheetInfo) -> int:
         order = {
-            "A5": 0,
-            "B": 1,
-            "C": 2,
-            "D": 3,
-            "E": 4,
+            SheetType.A5: 0,
+            SheetType.B: 1,
+            SheetType.C: 2,
+            SheetType.D: 3,
+            SheetType.E: 4,
         }
 
-        return order[sheet_info.sheet_type.value]
+        return order[sheet_info.sheet_type]

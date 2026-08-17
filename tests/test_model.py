@@ -1,3 +1,4 @@
+from dataclasses import FrozenInstanceError
 from pathlib import Path
 
 from rpgmaker2godot.model import (
@@ -6,26 +7,33 @@ from rpgmaker2godot.model import (
     SheetType,
     Tile,
     Tileset,
+    TileRef,
 )
 
 import pytest
 
 def test_tile() -> None:
     tile = Tile(
-        index=17,
-        column=1,
-        row=1,
-        x=48,
-        y=48,
+        ref=TileRef(
+            tileset="Inside",
+            sheet_type=SheetType.B,
+            index=42,
+        ),
+        column=10,
+        row=2,
+        x=480,
+        y=96,
         width=48,
         height=48,
     )
 
-    assert tile.index == 17
-    assert tile.column == 1
-    assert tile.row == 1
-    assert tile.x == 48
-    assert tile.y == 48
+    assert tile.ref.tileset == "Inside"
+    assert tile.ref.sheet_type == SheetType.B
+    assert tile.ref.index == 42
+    assert tile.column == 10
+    assert tile.row == 2
+    assert tile.x == 480
+    assert tile.y == 96
     assert tile.width == 48
     assert tile.height == 48
 
@@ -33,7 +41,11 @@ def test_tile() -> None:
 def test_sheet() -> None:
     tiles = (
         Tile(
-            index=0,
+            ref=TileRef(
+                tileset="Inside",
+                sheet_type=SheetType.B,
+                index=0,
+            ),
             column=0,
             row=0,
             x=0,
@@ -42,7 +54,11 @@ def test_sheet() -> None:
             height=48,
         ),
         Tile(
-            index=1,
+            ref=TileRef(
+                tileset="Inside",
+                sheet_type=SheetType.B,
+                index=1,
+            ),
             column=1,
             row=0,
             x=48,
@@ -108,7 +124,11 @@ def test_conversion_result() -> None:
 
 def test_tile_is_immutable() -> None:
     tile = Tile(
-        index=0,
+        ref=TileRef(
+            tileset="Inside",
+            sheet_type=SheetType.B,
+            index=0,
+        ),
         column=0,
         row=0,
         x=0,
@@ -117,8 +137,8 @@ def test_tile_is_immutable() -> None:
         height=48,
     )
 
-    with pytest.raises(AttributeError):
-        tile.x = 48
+    with pytest.raises(FrozenInstanceError):
+        tile.x = 96
 
 def test_sheet_is_immutable() -> None:
     sheet = Sheet(

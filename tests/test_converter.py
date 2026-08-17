@@ -86,28 +86,41 @@ def test_creates_correct_tile_coordinates() -> None:
     tile_16 = sheet.tiles[16]
     tile_17 = sheet.tiles[17]
 
-    assert tile_0.index == 0
+    assert tile_0.ref.tileset == "Inside"
+    assert tile_0.ref.sheet_type == SheetType.B
+    assert tile_0.ref.index == 0
     assert tile_0.column == 0
     assert tile_0.row == 0
     assert tile_0.x == 0
     assert tile_0.y == 0
 
-    assert tile_1.index == 1
+    assert tile_1.ref.tileset == "Inside"
+    assert tile_1.ref.sheet_type == SheetType.B
+    assert tile_1.ref.index == 1
     assert tile_1.column == 1
     assert tile_1.row == 0
     assert tile_1.x == 48
     assert tile_1.y == 0
 
+    assert tile_15.ref.tileset == "Inside"
+    assert tile_15.ref.sheet_type == SheetType.B
+    assert tile_15.ref.index == 15
     assert tile_15.column == 15
     assert tile_15.row == 0
     assert tile_15.x == 720
     assert tile_15.y == 0
 
+    assert tile_16.ref.tileset == "Inside"
+    assert tile_16.ref.sheet_type == SheetType.B
+    assert tile_16.ref.index == 16
     assert tile_16.column == 0
     assert tile_16.row == 1
     assert tile_16.x == 0
     assert tile_16.y == 48
 
+    assert tile_17.ref.tileset == "Inside"
+    assert tile_17.ref.sheet_type == SheetType.B
+    assert tile_17.ref.index == 17
     assert tile_17.column == 1
     assert tile_17.row == 1
     assert tile_17.x == 48

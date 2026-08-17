@@ -153,5 +153,16 @@ def test_sheet_is_immutable() -> None:
         tiles=(),
     )
 
-    with pytest.raises(AttributeError):
+    with pytest.raises(FrozenInstanceError):
         sheet.columns = 8
+
+
+def test_tile_ref_is_immutable() -> None:
+    ref = TileRef(
+        tileset="Inside",
+        sheet_type=SheetType.B,
+        index=0,
+    )
+
+    with pytest.raises(FrozenInstanceError):
+        ref.index = 1

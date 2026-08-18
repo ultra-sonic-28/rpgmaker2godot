@@ -90,7 +90,7 @@ class GodotAtlasTile:
     atlas_x: int
     atlas_y: int
 
-    cell: GodotAtlasCell | None
+    cell: GodotAtlasCell
 
     width: int
     height: int

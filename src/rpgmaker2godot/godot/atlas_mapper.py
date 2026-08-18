@@ -12,8 +12,11 @@ class GodotAtlasMapper:
         tiles = tuple(
             GodotAtlasTile(
                 ref=placement.tile,
+                source_x=placement.source_x,
+                source_y=placement.source_y,
                 atlas_x=placement.atlas_x,
                 atlas_y=placement.atlas_y,
+                cell=None,
                 width=placement.width,
                 height=placement.height,
             )

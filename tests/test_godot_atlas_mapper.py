@@ -36,6 +36,39 @@ def test_maps_tiles_to_atlas_coordinates() -> None:
     ]
 
 
+def test_mapper_does_not_create_godot_cells() -> None:
+    tileset = make_tileset_with_sheets(
+        make_sheet(SheetType.B, 96, 96),
+    )
+
+    atlas = AtlasBuilder().build(tileset)
+    mapping = GodotAtlasMapper().map(atlas)
+
+    assert all(
+        tile.cell is None
+        for tile in mapping.tiles
+    )
+
+    
+def test_maps_source_coordinates() -> None:
+    tileset = make_tileset_with_sheets(
+        make_sheet(SheetType.B, 96, 96),
+    )
+
+    atlas = AtlasBuilder().build(tileset)
+    mapping = GodotAtlasMapper().map(atlas)
+
+    assert [
+        (tile.source_x, tile.source_y)
+        for tile in mapping.tiles
+    ] == [
+        (0, 0),
+        (48, 0),
+        (0, 48),
+        (48, 48),
+    ]
+
+
 def test_preserves_tile_refs() -> None:
     tileset = make_tileset_with_sheets(
         make_sheet(

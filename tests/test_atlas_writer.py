@@ -2,9 +2,28 @@ from pathlib import Path
 
 from PIL import Image
 
+from rpgmaker2godot.atlas.builder import AtlasBuilder
 from rpgmaker2godot.atlas.writer import AtlasWriter
 from rpgmaker2godot.atlas.models import Atlas, AtlasPlacement
 from rpgmaker2godot.model import SheetType, TileRef
+
+from tests.helpers.atlas import (
+    make_sheet,
+    make_tileset,
+    make_tileset_with_sheets,
+)
+
+
+def create_source_image(
+    path: Path,
+    size: tuple[int, int],
+    color: tuple[int, int, int, int],
+) -> None:
+    Image.new(
+        "RGBA",
+        size,
+        color,
+    ).save(path)
 
 
 def test_writes_atlas_dimensions(tmp_path: Path) -> None:
@@ -158,4 +177,78 @@ def test_atlas_background_is_transparent(
             0,
             0,
             0,
+        )
+
+
+def test_writes_multi_sheet_atlas(tmp_path: Path) -> None:
+    create_source_image(
+        tmp_path / "Inside_A5.png",
+        (96, 96),
+        (255, 0, 0, 255),
+    )
+
+    create_source_image(
+        tmp_path / "Inside_B.png",
+        (96, 96),
+        (0, 255, 0, 255),
+    )
+
+    create_source_image(
+        tmp_path / "Inside_C.png",
+        (96, 96),
+        (0, 0, 255, 255),
+    )
+
+    tileset = make_tileset_with_sheets(
+        make_sheet(
+            SheetType.A5,
+            width=96,
+            height=96,
+            source_directory=tmp_path,
+        ),
+        make_sheet(
+            SheetType.B,
+            width=96,
+            height=96,
+            source_directory=tmp_path,
+        ),
+        make_sheet(
+            SheetType.C,
+            width=96,
+            height=96,
+            source_directory=tmp_path,
+        ),
+    )
+
+    atlas = AtlasBuilder().build(tileset)
+
+    output_path = tmp_path / "atlas.png"
+
+    AtlasWriter().write(
+        atlas,
+        output_path,
+    )
+
+    with Image.open(output_path) as image:
+        assert image.size == (96, 288)
+
+        assert image.getpixel((24, 24)) == (
+            255,
+            0,
+            0,
+            255,
+        )
+
+        assert image.getpixel((24, 120)) == (
+            0,
+            255,
+            0,
+            255,
+        )
+
+        assert image.getpixel((24, 216)) == (
+            0,
+            0,
+            255,
+            255,
         )

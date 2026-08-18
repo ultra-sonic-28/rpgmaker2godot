@@ -29,21 +29,24 @@ class SimpleExporter:
         self,
         conversion: ConversionResult,
         output_directory: Path,
-    ) -> None:
+    ) -> tuple[Path, ...]:
         output_directory.mkdir(
             parents=True,
             exist_ok=True,
         )
 
+        generated_paths: list[Path] = []
+
         for tileset in conversion.tilesets:
             atlas = self._atlas_builder.build(tileset)
 
-            output_path = (
-                output_directory
-                / f"{tileset.name}.png"
-            )
+            output_path = output_directory / f"{tileset.name}.png"
 
             self._atlas_writer.write(
                 atlas,
                 output_path,
             )
+
+            generated_paths.append(output_path)
+
+        return tuple(generated_paths)

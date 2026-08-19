@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from rpgmaker2godot.atlas.models import Atlas
 from rpgmaker2godot.godot.model import (
     GodotAtlasMapping,
     GodotAtlasSource,
@@ -102,4 +103,20 @@ def make_godot_atlas_source() -> GodotAtlasSource:
                 height=48,
             ),
         ),
+    )
+
+
+def make_atlas(
+    *,
+    width: int = 96,
+    height: int = 96,
+    tile_width: int = 48,
+    tile_height: int = 48,
+) -> Atlas:
+    return Atlas(
+        width=width,
+        height=height,
+        tile_width=tile_width,
+        tile_height=tile_height,
+        placements=(),
     )

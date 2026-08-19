@@ -9,6 +9,18 @@ class GodotAtlasMapper:
     """Map the internal atlas representation to Godot atlas coordinates."""
 
     def map(self, atlas: Atlas) -> GodotAtlasMapping:
+        if atlas.width % atlas.tile_width != 0:
+            raise ValueError(
+                "Atlas width must be a multiple of tile width: "
+                f"{atlas.width} is not divisible by {atlas.tile_width}"
+            )
+
+        if atlas.height % atlas.tile_height != 0:
+            raise ValueError(
+                "Atlas height must be a multiple of tile height: "
+                f"{atlas.height} is not divisible by {atlas.tile_height}"
+            )
+        
         tiles = tuple(
             GodotAtlasTile(
                 ref=placement.tile,

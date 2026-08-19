@@ -10,6 +10,7 @@ from rpgmaker2godot.model import SheetType
 
 from tests.helpers.godot_atlas import (
     make_mapping_with_tile, 
+    make_atlas,
 )
 
 from tests.helpers.atlas import (
@@ -224,3 +225,43 @@ def test_rejects_tile_outside_atlas_vertically() -> None:
             mapping,
             Path("Inside.png"),
         )
+
+
+def test_rejects_atlas_with_misaligned_width() -> None:
+    atlas = make_atlas(
+        width=100,
+        height=96,
+        tile_width=48,
+        tile_height=48,
+    )
+
+    mapper = GodotAtlasMapper()
+
+    with pytest.raises(ValueError, match="width"):
+        mapper.map(atlas)
+
+
+def test_rejects_atlas_with_misaligned_height() -> None:
+    atlas = make_atlas(
+        width=96,
+        height=100,
+        tile_width=48,
+        tile_height=48,
+    )
+
+    mapper = GodotAtlasMapper()
+
+    with pytest.raises(ValueError, match="height"):
+        mapper.map(atlas)
+
+
+def test_accepts_atlas_with_dimensions_aligned_to_tiles() -> None:
+    atlas = make_atlas(
+        width=96,
+        height=288,
+    )
+
+    result = GodotAtlasMapper().map(atlas)
+
+    assert result.width == 96
+    assert result.height == 288

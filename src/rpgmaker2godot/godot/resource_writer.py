@@ -100,17 +100,23 @@ class GodotResourceWriter:
         resource_path: Path,
         texture_path: Path,
     ) -> str:
-        normalized = texture_path.as_posix()
+        raw_path = str(texture_path)
 
-        # Déjà un chemin Godot.
-        if normalized.startswith("res://"):
-            return normalized
+        # Explicit Godot path.
+        # On Windows, Path("res://...") becomes "res:\\..."
+        # when converted back to a string.
+        if raw_path.startswith("res://"):
+            return raw_path
 
-        # Chemin relatif : il est déjà relatif à la racine Godot.
+        if raw_path.startswith("res:\\"):
+            return "res://" + raw_path[len("res:\\"):].replace("\\", "/")
+
+        # Simple relative path, e.g. "Inside.png".
         if not texture_path.is_absolute():
-            return f"res://{normalized.lstrip('/')}"
+            return f"res://{texture_path.as_posix()}"
 
-        # Chemin absolu : il doit être dans le même arbre que le .tres.
+        # Absolute filesystem path: it must be located next to the
+        # generated .tres or below its directory.
         try:
             relative_path = texture_path.relative_to(
                 resource_path.parent,

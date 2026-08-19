@@ -154,3 +154,136 @@ def test_writes_nested_texture_path_relative_to_resource(
     )
 
     assert 'path="res://textures/Inside.png"' in content
+
+
+def test_converts_relative_texture_path_to_godot_path(
+    tmp_path: Path,
+) -> None:
+    tileset = make_godot_tileset()
+
+    output_path = tmp_path / "Inside.tres"
+
+    GodotResourceWriter().write(
+        tileset,
+        output_path,
+        Path("Inside.png"),
+    )
+
+    content = output_path.read_text(
+        encoding="utf-8",
+    )
+
+    assert 'path="res://Inside.png"' in content
+
+
+def test_preserves_godot_texture_path(
+    tmp_path: Path,
+) -> None:
+    tileset = make_godot_tileset()
+
+    output_path = tmp_path / "Inside.tres"
+
+    GodotResourceWriter().write(
+        tileset,
+        output_path,
+        Path("res://tilesets/Inside.png"),
+    )
+
+    content = output_path.read_text(
+        encoding="utf-8",
+    )
+
+    assert (
+        'path="res://tilesets/Inside.png"'
+        in content
+    )
+
+
+def test_converts_absolute_texture_path_relative_to_resource(
+    tmp_path: Path,
+) -> None:
+    tileset = make_godot_tileset()
+
+    output_directory = tmp_path / "output"
+
+    output_path = (
+        output_directory / "Inside.tres"
+    )
+
+    texture_path = (
+        output_directory / "Inside.png"
+    )
+
+    GodotResourceWriter().write(
+        tileset,
+        output_path,
+        texture_path,
+    )
+
+    content = output_path.read_text(
+        encoding="utf-8",
+    )
+
+    assert 'path="res://Inside.png"' in content
+
+
+def test_preserves_relative_subdirectory_for_absolute_texture_path(
+    tmp_path: Path,
+) -> None:
+    tileset = make_godot_tileset()
+
+    output_directory = tmp_path / "output"
+
+    output_path = (
+        output_directory / "tilesets" / "Inside.tres"
+    )
+
+    texture_path = (
+        output_directory
+        / "tilesets"
+        / "images"
+        / "Inside.png"
+    )
+
+    GodotResourceWriter().write(
+        tileset,
+        output_path,
+        texture_path,
+    )
+
+    content = output_path.read_text(
+        encoding="utf-8",
+    )
+
+    assert (
+        'path="res://images/Inside.png"'
+        in content
+    )
+
+
+def test_rejects_absolute_texture_path_outside_resource_directory(
+    tmp_path: Path,
+) -> None:
+    tileset = make_godot_tileset()
+
+    output_path = (
+        tmp_path
+        / "output"
+        / "Inside.tres"
+    )
+
+    texture_path = (
+        tmp_path
+        / "other"
+        / "Inside.png"
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Texture path must be located inside",
+    ):
+        GodotResourceWriter().write(
+            tileset,
+            output_path,
+            texture_path,
+        )

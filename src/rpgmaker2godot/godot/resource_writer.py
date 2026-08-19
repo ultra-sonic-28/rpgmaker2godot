@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from rpgmaker2godot.godot.atlas.atlas_builder import GodotAtlasSourceBuilder
+
 from .resource import (
     GodotAtlasSourceResource,
     GodotExtResource,
@@ -15,11 +17,18 @@ class GodotResourceWriter:
     def __init__(
         self,
         serializer: GodotResourceSerializer | None = None,
+        atlas_source_builder: GodotAtlasSourceBuilder | None = None,
     ) -> None:
         self._serializer = (
             serializer
             if serializer is not None
             else GodotResourceSerializer()
+        )
+
+        self._atlas_source_builder = (
+            atlas_source_builder
+            if atlas_source_builder is not None
+            else GodotAtlasSourceBuilder()
         )
 
     def write(
@@ -72,20 +81,10 @@ class GodotResourceWriter:
             ),
         )
 
-        tiles = tuple(
-            (
-                tile.cell.column,
-                tile.cell.row,
-            )
-            for tile in source.tiles
-        )
-
-        atlas = GodotAtlasSourceResource(
+        atlas = self._atlas_source_builder.build(
+            source,
             resource_id=atlas_resource_id,
             texture_resource_id=texture_resource_id,
-            tile_width=source.tile_width,
-            tile_height=source.tile_height,
-            tiles=tiles,
         )
 
         return GodotTileSetResource(

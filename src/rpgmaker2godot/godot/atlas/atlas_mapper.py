@@ -1,5 +1,5 @@
-from ..atlas.models import Atlas
-from .model import (
+from ...atlas.models import Atlas
+from ..model import (
     GodotAtlasMapping,
     GodotAtlasTile,
 )

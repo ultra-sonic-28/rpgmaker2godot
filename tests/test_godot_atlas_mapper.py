@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from rpgmaker2godot.godot.atlas_mapper import GodotAtlasMapper
+from rpgmaker2godot.godot.atlas.atlas_mapper import GodotAtlasMapper
 from rpgmaker2godot.model import SheetType
 
 from tests.helpers.atlas import (

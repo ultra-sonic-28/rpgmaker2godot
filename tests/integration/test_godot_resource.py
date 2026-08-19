@@ -135,10 +135,33 @@ func _initialize() -> void:
         )
         return
 
-    if not atlas_source.has_tile(Vector2i(0, 0)):
-        fail("Missing tile at (0, 0)")
+    if atlas_source.texture_region_size != Vector2i(48, 48):
+        fail(
+            "Unexpected texture region size: %s"
+            % atlas_source.texture_region_size
+        )
         return
 
+    for row in range(6):
+        for column in range(2):
+            var cell := Vector2i(column, row)
+
+            if not atlas_source.has_tile(cell):
+                fail(
+                    "Missing tile at %s"
+                    % cell
+                )
+                return
+            
+            var size := atlas_source.get_tile_size_in_atlas(cell)
+
+            if size != Vector2i(1, 1):
+                fail(
+                    "Unexpected tile size at %s: %s"
+                    % [cell, size]
+                )
+                return
+                
     quit(0)
 """,
         encoding="utf-8",

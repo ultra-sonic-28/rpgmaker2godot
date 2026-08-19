@@ -59,5 +59,7 @@ class AtlasWriter:
             image.save(output_path, "PNG")
 
         finally:
+            image.close()
+            
             for source in source_images.values():
                 source.close()

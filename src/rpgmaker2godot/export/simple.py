@@ -18,6 +18,7 @@ class SimpleExporter:
         godot_atlas_mapper: GodotAtlasMapper | None = None,
         godot_tileset_builder: GodotTileSetBuilder | None = None,
         godot_resource_writer: GodotResourceWriter | None = None,
+        godot_project_root: Path | None = None,
     ) -> None:
         self._atlas_builder = (
             atlas_builder
@@ -49,6 +50,8 @@ class SimpleExporter:
             else GodotResourceWriter()
         )
 
+        self._godot_project_root = godot_project_root
+
     def export(
         self,
         conversion: ConversionResult,
@@ -64,7 +67,9 @@ class SimpleExporter:
         for tileset in conversion.tilesets:
             atlas = self._atlas_builder.build(tileset)
 
-            atlas_path = output_directory / f"{tileset.name}.png"
+            atlas_path = (
+                output_directory / f"{tileset.name}.png"
+            )
 
             self._atlas_writer.write(
                 atlas,
@@ -82,16 +87,26 @@ class SimpleExporter:
                 output_directory / f"{tileset.name}.tres"
             )
 
+            if self._godot_project_root is None:
+                godot_texture_path = Path(
+                    atlas_path.name,
+                )
+            else:
+                godot_texture_path = atlas_path.relative_to(
+                    self._godot_project_root,
+                )
+
             self._godot_resource_writer.write(
                 godot_tileset,
                 resource_path,
-                atlas_path,
+                godot_texture_path,
             )
 
             generated_paths.extend(
                 (
                     atlas_path,
                     resource_path,
+                    godot_texture_path,
                 )
             )
 

@@ -67,3 +67,22 @@ class GodotAtlasTile:
 
     width: int
     height: int
+
+
+@dataclass(frozen=True)
+class GodotAtlasTileResource:
+    """Serialized representation of a TileSetAtlasSource cell."""
+    
+    column: int
+    row: int
+
+
+@dataclass(frozen=True)
+class GodotAtlasSourceResource:
+    resource_id: str
+    texture_resource_id: str
+
+    tile_width: int
+    tile_height: int
+
+    tiles: tuple[GodotAtlasTileResource, ...]

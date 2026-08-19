@@ -41,9 +41,9 @@ class GodotResourceSerializer:
             f"Vector2i({atlas.tile_width}, {atlas.tile_height})"
         )
 
-        for column, row in atlas.tiles:
+        for tile in atlas.tiles:
             lines.append(
-                f"{column}:{row}/0 = 0"
+                f"{tile.column}:{tile.row}/0 = 0"
             )
 
         lines.append("")

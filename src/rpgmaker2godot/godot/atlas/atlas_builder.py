@@ -1,6 +1,7 @@
 from rpgmaker2godot.godot.model import GodotAtlasSource
 from rpgmaker2godot.godot.resource import GodotAtlasSourceResource
 
+from rpgmaker2godot.godot.model import GodotAtlasTileResource
 
 class GodotAtlasSourceBuilder:
     """Build a serializable Godot TileSetAtlasSource resource."""
@@ -13,10 +14,10 @@ class GodotAtlasSourceBuilder:
         texture_resource_id: str,
     ) -> GodotAtlasSourceResource:
         tiles = tuple(
-            (
-                tile.cell.column,
-                tile.cell.row,
-            )
+            GodotAtlasTileResource(
+            column=tile.cell.column,
+            row=tile.cell.row,
+        )
             for tile in source.tiles
         )
 

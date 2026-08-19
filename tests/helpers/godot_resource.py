@@ -6,7 +6,9 @@ from rpgmaker2godot.godot.resource import (
 from rpgmaker2godot.godot.resource_serializer import (
     GodotResourceSerializer,
 )
-
+from rpgmaker2godot.godot.model import (
+    GodotAtlasTileResource, 
+)
 
 def make_resource() -> GodotTileSetResource:
     texture = GodotExtResource(
@@ -21,11 +23,11 @@ def make_resource() -> GodotTileSetResource:
         tile_width=48,
         tile_height=48,
         tiles=(
-            (0, 0),
-            (1, 0),
-            (0, 1),
-            (1, 1),
-        ),
+            GodotAtlasTileResource(column=0, row=0),
+            GodotAtlasTileResource(column=1, row=0),
+            GodotAtlasTileResource(column=0, row=1),
+            GodotAtlasTileResource(column=1, row=1),
+    ),
     )
 
     return GodotTileSetResource(

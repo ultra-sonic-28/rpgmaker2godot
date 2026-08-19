@@ -105,3 +105,52 @@ def test_rejects_multiple_atlas_sources(
             tmp_path / "Inside.tres",
             Path("Inside.png"),
         )
+
+
+def test_writes_texture_path_relative_to_resource(
+    tmp_path: Path,
+) -> None:
+    tileset = make_godot_tileset()
+
+    texture_path = tmp_path / "Inside.png"
+    resource_path = tmp_path / "Inside.tres"
+
+    writer = GodotResourceWriter()
+
+    writer.write(
+        tileset,
+        resource_path,
+        texture_path,
+    )
+
+    content = resource_path.read_text(
+        encoding="utf-8",
+    )
+
+    assert 'path="res://Inside.png"' in content
+
+
+def test_writes_nested_texture_path_relative_to_resource(
+    tmp_path: Path,
+) -> None:
+    tileset = make_godot_tileset()
+
+    texture_directory = tmp_path / "textures"
+    texture_path = texture_directory / "Inside.png"
+    resource_path = tmp_path / "Inside.tres"
+
+    texture_directory.mkdir()
+
+    writer = GodotResourceWriter()
+
+    writer.write(
+        tileset,
+        resource_path,
+        texture_path,
+    )
+
+    content = resource_path.read_text(
+        encoding="utf-8",
+    )
+
+    assert 'path="res://textures/Inside.png"' in content

@@ -30,6 +30,7 @@ class GodotResourceWriter:
     ) -> None:
         resource = self._build_resource(
             tileset,
+            output_path,
             texture_path,
         )
 
@@ -48,6 +49,7 @@ class GodotResourceWriter:
     def _build_resource(
         self,
         tileset: GodotTileSet,
+        output_path: Path,
         texture_path: Path,
     ) -> GodotTileSetResource:
         if len(tileset.atlas_sources) != 1:
@@ -64,7 +66,10 @@ class GodotResourceWriter:
         texture = GodotExtResource(
             resource_id=texture_resource_id,
             resource_type="Texture2D",
-            path=self._to_godot_path(texture_path),
+            path=self._to_godot_path(
+                output_path,
+                texture_path,
+            ),
         )
 
         tiles = tuple(
@@ -91,10 +96,30 @@ class GodotResourceWriter:
         )
 
     @staticmethod
-    def _to_godot_path(path: Path) -> str:
-        normalized = path.as_posix()
+    def _to_godot_path(
+        resource_path: Path,
+        texture_path: Path,
+    ) -> str:
+        normalized = texture_path.as_posix()
 
+        # Déjà un chemin Godot.
         if normalized.startswith("res://"):
             return normalized
 
-        return f"res://{normalized.lstrip('/')}"
+        # Chemin relatif : il est déjà relatif à la racine Godot.
+        if not texture_path.is_absolute():
+            return f"res://{normalized.lstrip('/')}"
+
+        # Chemin absolu : il doit être dans le même arbre que le .tres.
+        try:
+            relative_path = texture_path.relative_to(
+                resource_path.parent,
+            )
+        except ValueError:
+            raise ValueError(
+                "Texture path must be located inside the "
+                "Godot resource directory: "
+                f"{texture_path}"
+            ) from None
+
+        return f"res://{relative_path.as_posix()}"

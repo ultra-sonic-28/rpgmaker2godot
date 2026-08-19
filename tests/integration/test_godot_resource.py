@@ -70,11 +70,38 @@ renderer/rendering_method.mobile="gl_compatibility"
 
 def write_validation_script(
     project_directory: Path,
+    expected_missing_cell: tuple[int, int] | None = None
 ) -> Path:
     script_path = project_directory / "validate.gd"
 
+    missing_cell_check = ""
+
+    if expected_missing_cell is not None:
+        column, row = expected_missing_cell
+
+        missing_cell_check = f"""
+    var missing_cell := Vector2i({column}, {row})
+
+    if atlas_source.has_tile(missing_cell):
+        fail(
+            "Unexpected tile at (%d, %d)"
+            % [missing_cell.x, missing_cell.y]
+        )
+        return
+    """
+
+    missing_cell_skip = ""
+
+    if expected_missing_cell is not None:
+        column, row = expected_missing_cell
+
+        missing_cell_skip = f"""
+            if cell == Vector2i({column}, {row}):
+                continue
+    """
+        
     script_path.write_text(
-        """\
+        f"""\
 extends SceneTree
 
 func fail(message: String) -> void:
@@ -142,9 +169,14 @@ func _initialize() -> void:
         )
         return
 
-    for row in range(6):
-        for column in range(2):
+    var expected_columns := 2
+    var expected_rows := 6
+
+    for row in range(expected_rows):
+        for column in range(expected_columns):
             var cell := Vector2i(column, row)
+
+    {missing_cell_skip}
 
             if not atlas_source.has_tile(cell):
                 fail(
@@ -161,7 +193,9 @@ func _initialize() -> void:
                     % [cell, size]
                 )
                 return
-                
+
+    {missing_cell_check}             
+
     quit(0)
 """,
         encoding="utf-8",
@@ -288,6 +322,117 @@ def test_generated_tileset_loads_in_godot(
 
     assert result.returncode == 0, (
         "Godot failed to load generated TileSet.\n\n"
+        f"STDOUT:\n{result.stdout}\n\n"
+        f"STDERR:\n{result.stderr}"
+    )
+
+
+@pytest.mark.integration
+def test_generated_tileset_rejects_missing_atlas_cell(
+    tmp_path: Path,
+) -> None:
+    godot = find_godot()
+
+    if godot is None:
+        pytest.skip(
+            "Godot executable not available. "
+            "Set the GODOT environment variable."
+        )
+
+    input_directory = tmp_path / "tilesets"
+    project_directory = tmp_path / "godot"
+    generated_directory = project_directory / "generated"
+
+    generated_directory.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    create_sheet(
+        input_directory,
+        "Inside_A5.png",
+    )
+
+    create_sheet(
+        input_directory,
+        "Inside_B.png",
+    )
+
+    create_sheet(
+        input_directory,
+        "Inside_C.png",
+    )
+
+    analysis = TilesetDetector().analyze(
+        input_directory,
+    )
+
+    conversion = SimpleConverter().convert(
+        analysis,
+    )
+
+    SimpleExporter(
+        godot_project_root=project_directory,
+    ).export(
+        conversion,
+        generated_directory,
+    )
+
+    write_project(project_directory)
+
+    generated_tres = generated_directory / "Inside.tres"
+
+    content = generated_tres.read_text(
+        encoding="utf-8",
+    )
+
+    # Remove deliberately one atlas cell.
+    content = content.replace(
+        "1:3/0 = 0\n",
+        "",
+    )
+
+    generated_tres.write_text(
+        content,
+        encoding="utf-8",
+    )
+
+    script_path = write_validation_script(
+        project_directory,
+        expected_missing_cell=(1, 3),
+    )
+
+    subprocess.run(
+        [
+            godot,
+            "--headless",
+            "--path",
+            str(project_directory),
+            "--editor",
+            "--quit",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    result = subprocess.run(
+        [
+            godot,
+            "--headless",
+            "--path",
+            str(project_directory),
+            "--script",
+            str(script_path.name),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, (
+        "Godot unexpectedly accepted a TileSet "
+        "with a missing atlas cell.\n\n"
         f"STDOUT:\n{result.stdout}\n\n"
         f"STDERR:\n{result.stderr}"
     )

@@ -72,9 +72,32 @@ class GodotAtlasTile:
 @dataclass(frozen=True)
 class GodotAtlasTileResource:
     """Serialized representation of a TileSetAtlasSource cell."""
-    
+
     column: int
     row: int
+    width: int = 1
+    height: int = 1
+
+    def __post_init__(self) -> None:
+        if self.column < 0:
+            raise ValueError(
+                "Atlas tile column must be >= 0."
+            )
+
+        if self.row < 0:
+            raise ValueError(
+                "Atlas tile row must be >= 0."
+            )
+
+        if self.width <= 0:
+            raise ValueError(
+                "Atlas tile width must be > 0."
+            )
+
+        if self.height <= 0:
+            raise ValueError(
+                "Atlas tile height must be > 0."
+            )
 
 
 @dataclass(frozen=True)

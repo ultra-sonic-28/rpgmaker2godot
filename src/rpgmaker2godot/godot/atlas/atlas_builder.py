@@ -15,9 +15,17 @@ class GodotAtlasSourceBuilder:
     ) -> GodotAtlasSourceResource:
         tiles = tuple(
             GodotAtlasTileResource(
-            column=tile.cell.column,
-            row=tile.cell.row,
-        )
+                column=tile.cell.column,
+                row=tile.cell.row,
+                width=self._to_cell_dimension(
+                    tile.width,
+                    source.tile_width,
+                ),
+                height=self._to_cell_dimension(
+                    tile.height,
+                    source.tile_height,
+                ),
+            )
             for tile in source.tiles
         )
 
@@ -28,3 +36,22 @@ class GodotAtlasSourceBuilder:
             tile_height=source.tile_height,
             tiles=tiles,
         )
+
+
+    @staticmethod
+    def _to_cell_dimension(
+        pixels: int,
+        tile_size: int,
+    ) -> int:
+        if pixels <= 0:
+            raise ValueError(
+                "Tile dimension must be positive."
+            )
+
+        if pixels % tile_size != 0:
+            raise ValueError(
+                "Tile dimension must be aligned "
+                "to the atlas tile size."
+            )
+
+        return pixels // tile_size

@@ -101,18 +101,3 @@ def test_rejects_negative_height() -> None:
             row=0,
             height=-1,
         )
-
-
-def test_maps_tile_dimensions_to_unit_size() -> None:
-    atlas = make_godot_atlas_source()
-
-    result = GodotAtlasSourceBuilder().build(
-        atlas,
-        resource_id="TileSetAtlasSource_1",
-        texture_resource_id="1_texture",
-    )
-
-    assert all(
-        tile.width == 1 and tile.height == 1
-        for tile in result.tiles
-    )

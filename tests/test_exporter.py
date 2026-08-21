@@ -6,7 +6,7 @@ from rpgmaker2godot.analysis.detector import TilesetDetector
 from rpgmaker2godot.atlas.builder import AtlasBuilder
 from rpgmaker2godot.atlas.writer import AtlasWriter
 from rpgmaker2godot.conversion.converter import SimpleConverter
-from rpgmaker2godot.export.simple import SimpleExporter
+from rpgmaker2godot.godot.export.simple import SimpleExporter
 from rpgmaker2godot.model.enums import SheetType
 from rpgmaker2godot.model.tileset import ConversionResult
 

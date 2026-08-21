@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .analysis.detector import TilesetDetector
 from .conversion.converter import SimpleConverter
-from .export.simple import SimpleExporter
+from .godot.export.simple import SimpleExporter
 
 
 def main(argv: list[str] | None = None) -> int:

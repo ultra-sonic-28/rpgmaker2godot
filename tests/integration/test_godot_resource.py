@@ -8,7 +8,7 @@ import pytest
 
 from rpgmaker2godot.analysis.detector import TilesetDetector
 from rpgmaker2godot.conversion.converter import SimpleConverter
-from rpgmaker2godot.export.simple import SimpleExporter
+from rpgmaker2godot.godot.export.simple import SimpleExporter
 from tests.test_cli import create_sheet
 from tests.helpers.godot_atlas import make_multi_cell_conversion
 

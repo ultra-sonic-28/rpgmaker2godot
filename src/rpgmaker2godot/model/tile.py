@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from rpgmaker2godot.tileset.model import TileProperties
+
 from .enums import SheetType
 
 
@@ -12,6 +14,13 @@ class TileRef:
 
 @dataclass(frozen=True)
 class Tile:
+    """A tile discovered in an RPG Maker tileset sheet.
+
+    `properties` is populated during conversion from RPG Maker's
+    Tilesets.json flags. It is optional at the model level so that
+    low-level sheet detection remains independent from Tilesets.json.
+    """
+    
     ref: TileRef
     column: int
     row: int
@@ -19,6 +28,7 @@ class Tile:
     y: int
     width: int
     height: int
+    properties: TileProperties | None = None
 
 
 __all__ = [

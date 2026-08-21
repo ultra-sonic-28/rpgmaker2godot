@@ -1,5 +1,6 @@
 from collections import defaultdict
 from collections.abc import Iterator
+from dataclasses import replace
 
 from rpgmaker2godot.analysis.models import AnalysisResult, SheetInfo
 from rpgmaker2godot.model import (
@@ -10,11 +11,21 @@ from rpgmaker2godot.model import (
     TileRef,
 )
 from rpgmaker2godot.model.enums import SheetType
+from rpgmaker2godot.tileset.resolver import TilePropertiesResolver
 
 
 class SimpleConverter:
     """Convert an AnalysisResult into the internal representation."""
 
+    def __init__(
+        self,
+        *,
+        tile_properties_resolver: TilePropertiesResolver | None = None,
+    ) -> None:
+        self._tile_properties_resolver = (
+            tile_properties_resolver
+        )
+        
     def convert(self, analysis: AnalysisResult) -> ConversionResult:
         grouped_sheets: dict[str, list[SheetInfo]] = defaultdict(list)
 
@@ -52,14 +63,16 @@ class SimpleConverter:
         sheet_info: SheetInfo,
     ) -> Sheet:
         tiles = tuple(
-            self._create_tile(
-                tileset_name=tileset_name,
-                sheet_type=sheet_info.sheet_type,
-                index=index,
-                column=column,
-                row=row,
-                tile_width=sheet_info.tile_width,
-                tile_height=sheet_info.tile_height,
+            self._resolve_tile_properties(
+                self._create_tile(
+                    tileset_name=tileset_name,
+                    sheet_type=sheet_info.sheet_type,
+                    index=index,
+                    column=column,
+                    row=row,
+                    tile_width=sheet_info.tile_width,
+                    tile_height=sheet_info.tile_height,
+                )
             )
             for index, (row, column) in enumerate(
                 self._tile_coordinates(
@@ -85,7 +98,7 @@ class SimpleConverter:
     def _tile_coordinates(
         columns: int,
         rows: int,
-    ):
+    ) -> Iterator[tuple[int, int]]:
         for row in range(rows):
             for column in range(columns):
                 yield row, column
@@ -125,3 +138,15 @@ class SimpleConverter:
         }
 
         return order[sheet_info.sheet_type]
+
+    def _resolve_tile_properties(
+        self,
+        tile: Tile,
+    ) -> Tile:
+        if self._tile_properties_resolver is None:
+            return tile
+
+        return replace(
+            tile,
+            properties=self._tile_properties_resolver.resolve(tile),
+        )

@@ -12,4 +12,5 @@ __all__ = [
     "SheetInfo",
     "SheetType",
     "TilesetDetector",
+    "TileProperties",
 ]

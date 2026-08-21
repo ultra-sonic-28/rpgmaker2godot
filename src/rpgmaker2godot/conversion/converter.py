@@ -11,6 +11,7 @@ from rpgmaker2godot.model import (
     TileRef,
 )
 from rpgmaker2godot.model.enums import SheetType
+from rpgmaker2godot.tileset.collision import tile_properties_to_collision
 from rpgmaker2godot.tileset.resolver import TilePropertiesResolver
 
 
@@ -143,10 +144,48 @@ class SimpleConverter:
         self,
         tile: Tile,
     ) -> Tile:
+        """Resolve RPG Maker properties and collision for one tile.
+
+        The resolver is responsible for translating the TileRef into the
+        corresponding RPG Maker flags and decoding those flags into
+        TileProperties.
+
+        Collision is then derived from the semantic TileProperties.
+
+        Keeping both transformations here ensures that the Tile entering
+        the rest of the conversion pipeline is internally consistent:
+
+            TileRef
+            │
+            ▼
+            TilePropertiesResolver
+            │
+            ▼
+            TileProperties
+            │
+            ▼
+            TileCollision
+            │
+            ▼
+            enriched Tile
+
+        When no resolver is configured, the tile is returned unchanged.
+        This preserves the converter's previous behaviour.
+        """
+        
         if self._tile_properties_resolver is None:
             return tile
 
+        properties = (
+            self._tile_properties_resolver.resolve(tile)
+        )
+
+        collision = tile_properties_to_collision(
+            properties,
+        )
+
         return replace(
             tile,
-            properties=self._tile_properties_resolver.resolve(tile),
+            properties=properties,
+            collision=collision,
         )

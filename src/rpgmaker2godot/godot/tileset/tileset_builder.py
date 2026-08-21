@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from .model import (
+from ..model import (
     GodotAtlasCell,
     GodotAtlasMapping,
     GodotAtlasSource,

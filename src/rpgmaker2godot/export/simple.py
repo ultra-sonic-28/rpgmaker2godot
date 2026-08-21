@@ -4,7 +4,7 @@ from rpgmaker2godot.atlas.builder import AtlasBuilder
 from rpgmaker2godot.atlas.writer import AtlasWriter
 from rpgmaker2godot.godot.atlas.atlas_mapper import GodotAtlasMapper
 from rpgmaker2godot.godot.resource.resource_writer import GodotResourceWriter
-from rpgmaker2godot.godot.tileset_builder import GodotTileSetBuilder
+from rpgmaker2godot.godot.tileset.tileset_builder import GodotTileSetBuilder
 from rpgmaker2godot.model.tileset import ConversionResult
 
 

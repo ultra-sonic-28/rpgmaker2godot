@@ -80,3 +80,16 @@ def make_tileset_with_sheets(
         name=name,
         sheets=tuple(sheets),
     )
+
+
+def make_tile_ref(
+    *,
+    index: int,
+    tileset: str = "Inside",
+    sheet_type: SheetType = SheetType.A5,
+) -> TileRef:
+    return TileRef(
+        tileset=tileset,
+        sheet_type=sheet_type,
+        index=index,
+    )

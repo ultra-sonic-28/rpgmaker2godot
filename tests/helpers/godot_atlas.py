@@ -8,6 +8,10 @@ from rpgmaker2godot.godot.model import (
     GodotAtlasCell,
 )
 from rpgmaker2godot.model import SheetType, TileRef
+from rpgmaker2godot.model.sheet import Sheet
+from rpgmaker2godot.model.tile import Tile
+from rpgmaker2godot.model.tileset import ConversionResult, Tileset
+from tests.helpers.atlas import make_tile_ref
 
 
 def make_mapping_with_tile(
@@ -119,4 +123,104 @@ def make_atlas(
         tile_width=tile_width,
         tile_height=tile_height,
         placements=(),
+    )
+
+
+def make_large_godot_atlas_mapping() -> GodotAtlasMapping:
+    tile_size = 48
+
+    return GodotAtlasMapping(
+        tile_width=tile_size,
+        tile_height=tile_size,
+        width=4 * tile_size,
+        height=6 * tile_size,
+        tiles=(
+            GodotAtlasTile(
+                ref=make_tile_ref(index=0),
+                source_x=0,
+                source_y=0,
+                atlas_x=0,
+                atlas_y=0,
+                cell=None,
+                width=2 * tile_size,
+                height=1 * tile_size,
+            ),
+            GodotAtlasTile(
+                ref=make_tile_ref(index=1),
+                source_x=0,
+                source_y=0,
+                atlas_x=2 * tile_size,
+                atlas_y=0,
+                cell=None,
+                width=1 * tile_size,
+                height=2 * tile_size,
+            ),
+            GodotAtlasTile(
+                ref=make_tile_ref(index=2),
+                source_x=0,
+                source_y=0,
+                atlas_x=0,
+                atlas_y=2 * tile_size,
+                cell=None,
+                width=2 * tile_size,
+                height=3 * tile_size,
+            ),
+        ),
+    )
+
+
+def make_multi_cell_conversion(
+    source_path: Path,
+) -> ConversionResult:
+    tile_size = 48
+
+    tiles = (
+        Tile(
+            ref=make_tile_ref(index=0),
+            column=0,
+            row=0,
+            x=0,
+            y=0,
+            width=2 * tile_size,
+            height=1 * tile_size,
+        ),
+        Tile(
+            ref=make_tile_ref(index=1),
+            column=2,
+            row=0,
+            x=2 * tile_size,
+            y=0,
+            width=1 * tile_size,
+            height=2 * tile_size,
+        ),
+        Tile(
+            ref=make_tile_ref(index=2),
+            column=0,
+            row=2,
+            x=0,
+            y=2 * tile_size,
+            width=2 * tile_size,
+            height=3 * tile_size,
+        ),
+    )
+
+    sheet = Sheet(
+        sheet_type=SheetType.A5,
+        source_path=source_path,
+        width=4 * tile_size,
+        height=6 * tile_size,
+        tile_width=tile_size,
+        tile_height=tile_size,
+        columns=4,
+        rows=6,
+        tiles=tiles,
+    )
+
+    tileset = Tileset(
+        name="Inside",
+        sheets=(sheet,),
+    )
+
+    return ConversionResult(
+        tilesets=(tileset,),
     )

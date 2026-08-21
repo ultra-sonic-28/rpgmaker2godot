@@ -46,6 +46,12 @@ class GodotResourceSerializer:
                 f"{tile.column}:{tile.row}/0 = 0"
             )
 
+            if tile.width != 1 or tile.height != 1:
+                lines.append(
+                    f"{tile.column}:{tile.row}/size_in_atlas = "
+                    f"Vector2i({tile.width}, {tile.height})"
+                )
+
         lines.append("")
 
         lines.append("[resource]")

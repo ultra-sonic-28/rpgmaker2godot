@@ -1,9 +1,9 @@
-from rpgmaker2godot.godot.resource import (
+from rpgmaker2godot.godot.resource.resource import (
     GodotAtlasSourceResource,
     GodotExtResource,
     GodotTileSetResource,
 )
-from rpgmaker2godot.godot.resource_serializer import (
+from rpgmaker2godot.godot.resource.resource_serializer import (
     GodotResourceSerializer,
 )
 from rpgmaker2godot.godot.model import (

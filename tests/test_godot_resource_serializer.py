@@ -1,7 +1,7 @@
 from dataclasses import replace
 
 from rpgmaker2godot.godot.model import GodotAtlasTileResource
-from rpgmaker2godot.godot.resource_serializer import (
+from rpgmaker2godot.godot.resource.resource_serializer import (
     GodotResourceSerializer,
 )
 

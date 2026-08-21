@@ -1,5 +1,5 @@
 from rpgmaker2godot.godot.model import GodotAtlasSource
-from rpgmaker2godot.godot.resource import GodotAtlasSourceResource
+from rpgmaker2godot.godot.resource.resource import GodotAtlasSourceResource
 
 from rpgmaker2godot.godot.model import GodotAtlasTileResource
 

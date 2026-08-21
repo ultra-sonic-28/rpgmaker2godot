@@ -8,7 +8,7 @@ from rpgmaker2godot.godot.model import (
     GodotAtlasTileResource,
     GodotTileSet,
 )
-from rpgmaker2godot.godot.resource import GodotExtResource, GodotTileSetResource
+from rpgmaker2godot.godot.resource.resource import GodotExtResource, GodotTileSetResource
 from rpgmaker2godot.model import SheetType, TileRef
 
 

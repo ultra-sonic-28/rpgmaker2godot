@@ -8,7 +8,7 @@ from .resource import (
     GodotTileSetResource,
 )
 from .resource_serializer import GodotResourceSerializer
-from .model import GodotTileSet
+from ..model import GodotTileSet
 
 
 class GodotResourceWriter:

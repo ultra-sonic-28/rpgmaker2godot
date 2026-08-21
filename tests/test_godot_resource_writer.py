@@ -1,7 +1,7 @@
 from pathlib import Path
 import pytest
 
-from rpgmaker2godot.godot.resource_writer import (
+from rpgmaker2godot.godot.resource.resource_writer import (
     GodotResourceWriter,
 )
 

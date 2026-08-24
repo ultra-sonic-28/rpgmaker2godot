@@ -5,6 +5,7 @@ from .models import (
     SheetInfo,
     SheetType,
 )
+from ..tileset.model import TileProperties
 
 __all__ = [
     "AnalysisResult",

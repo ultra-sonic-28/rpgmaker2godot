@@ -87,11 +87,17 @@ class GodotResourceWriter:
             texture_resource_id=texture_resource_id,
         )
 
+        has_physics_layer = any(
+            tile.collision is not None
+            for tile in atlas.tiles
+        )
+
         return GodotTileSetResource(
             tile_width=tileset.tile_width,
             tile_height=tileset.tile_height,
             texture=texture,
             atlas_source=atlas,
+            has_physics_layer=has_physics_layer,
         )
 
     @staticmethod

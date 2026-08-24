@@ -28,4 +28,6 @@ class GodotTileSetResource:
 
     texture: GodotExtResource
     atlas_source: GodotAtlasSourceResource
+
+    has_physics_layer: bool = False
     physics_layers: tuple[int, ...] = ()

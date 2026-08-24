@@ -3,18 +3,31 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class GodotTileCollision:
-    """Godot representation of a tile collision polygon.
+    """Collision geometry associated with one Godot atlas tile.
 
-    The polygon coordinates are expressed in pixels relative to the
-    tile's local origin.
+    The polygon is expressed in tile-local pixel coordinates.
 
-    For the initial export milestone, a collision is represented by
-    one polygon covering the complete tile. The interpretation of
-    RPG Maker's directional passability flags is intentionally kept
-    outside this class.
+    The origin (0, 0) corresponds to the top-left corner of the tile.
+    Coordinates therefore use the same coordinate system as Godot's
+    TileSet collision polygons.
 
-    This class only represents geometry that is ready to be serialized
-    into Godot's TileData.
+    Keeping the geometry independent from the .tres serialization format
+    allows the resource writer to remain responsible solely for translating
+    our internal representation into Godot's textual resource syntax.
     """
 
     points: tuple[tuple[float, float], ...]
+
+    def __post_init__(self) -> None:
+        if len(self.points) < 3:
+            raise ValueError(
+                "A collision polygon must contain at least "
+                "three points."
+            )
+
+        for point in self.points:
+            if len(point) != 2:
+                raise ValueError(
+                    "A collision point must contain exactly "
+                    "two coordinates."
+                )

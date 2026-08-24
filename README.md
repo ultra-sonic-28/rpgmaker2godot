@@ -21,3 +21,39 @@ Run:
 ```bash
 rpgmaker2godot
 ```
+
+### Architecture
+```text
+src/rpgmaker2godot/
+├── cli.py                          # Point d'entrée CLI (main)
+├── analysis/                       # Détection des feuilles PNG (TilesetDetector)
+│   ├── detector.py, models.py
+├── conversion/                     # Transformation AnalysisResult → modèle interne
+│   └── converter.py                # SimpleConverter
+├── tileset/                        # Lecture/analyse des drapeaux RPG Maker
+│   ├── reader.py                   # TilesetsJsonReader
+│   ├── flags.py                    # decode_tile_flags() — décodage des 16 bits
+│   ├── model.py                    # TileProperties, TilesetFlags
+│   ├── resolver.py                 # TilePropertiesResolver
+│   ├── collision.py                # tile_properties_to_collision()
+│   └── tile_id.py                  # Conversion TileRef → global Tile ID
+├── model/                          # Modèle interne partagé (immuable)
+│   ├── enums.py, sheet.py, tile.py, tileset.py, tile_collision.py
+├── atlas/                          # Construction et écriture d'atlases PNG
+│   ├── builder.py, models.py, writer.py
+├── image/                          # Extraction d'images (PIL/Pillow)
+│   ├── extractor.py, source.py
+└── godot/                          # Génération des ressources Godot
+    ├── model.py                    # Modèles Godot (GodotTileSet, etc.)
+    ├── atlas/                      # atlas_builder.py, atlas_mapper.py
+    ├── tileset/                    # collision.py (GodotTileCollision), tileset_builder.py
+    ├── resource/                   # resource.py, resource_serializer.py, resource_writer.py
+    ├── export/                     # simple.py (SimpleExporter — orchestrateur)
+    └── collision/                  # tile_collision.py (has_collision — dead code)
+```
+
+### Pipeline de conversion
+CLI → TilesetDetector.analyze()     # scan du répertoire, regex A5/B/C/D/E.png
+  → SimpleConverter.convert()        # création des Tile (avec TileRef, coords)
+  → SimpleExporter.export()          # atlas_builder → atlas_writer → godot mapper
+                                     → tileset_builder → resource_writer → .tres

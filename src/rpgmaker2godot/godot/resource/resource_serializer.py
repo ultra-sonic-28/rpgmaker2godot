@@ -61,6 +61,11 @@ class GodotResourceSerializer:
             f"Vector2i({resource.tile_width}, {resource.tile_height})"
         )
 
+        if resource.has_physics_layer:
+            lines.append(
+                "physics_layer_0/collision_layer = 1"
+            )
+
         lines.append(
             'sources/0 = '
             f'SubResource("{atlas.resource_id}")'

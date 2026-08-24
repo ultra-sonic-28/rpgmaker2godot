@@ -53,7 +53,21 @@ src/rpgmaker2godot/
 ```
 
 ### Pipeline de conversion
-CLI → TilesetDetector.analyze()     # scan du répertoire, regex A5/B/C/D/E.png
-  → SimpleConverter.convert()        # création des Tile (avec TileRef, coords)
-  → SimpleExporter.export()          # atlas_builder → atlas_writer → godot mapper
-                                     → tileset_builder → resource_writer → .tres
+Pipeline de conversion RPG Maker → Godot
+
+```mermaid
+flowchart LR
+    CLI --> A["TilesetDetector.analyze()"]
+    A --> B["SimpleConverter.convert()"]
+    B --> C["SimpleExporter.export()"]
+    C --> D["atlas_builder"]
+    D --> E["atlas_writer"]
+    E --> F["godot mapper"]
+    F --> G["tileset_builder"]
+    G --> H["resource_writer"]
+    H --> I[".tres"]
+
+    A -.->|"scan du répertoire<br/>regex A5/B/C/D/E.png"| A
+    B -.->|"création des Tile<br/>TileRef + coords"| B
+    
+```

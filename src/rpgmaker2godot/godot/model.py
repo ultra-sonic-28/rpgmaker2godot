@@ -7,14 +7,27 @@ from ..model import TileRef
 
 
 @dataclass(frozen=True)
+class GodotAtlasCell:
+    column: int
+    row: int
+
+
+@dataclass(frozen=True)
 class GodotAtlasTile:
     ref: TileRef
+
+    source_x: int
+    source_y: int
 
     atlas_x: int
     atlas_y: int
 
+    cell: GodotAtlasCell
+
     width: int
     height: int
+
+    collision: GodotTileCollision | None = None
 
 
 @dataclass(frozen=True)
@@ -47,30 +60,6 @@ class GodotTileSet:
     tile_height: int
 
     atlas_sources: tuple[GodotAtlasSource, ...]
-
-
-@dataclass(frozen=True)
-class GodotAtlasCell:
-    column: int
-    row: int
-
-
-@dataclass(frozen=True)
-class GodotAtlasTile:
-    ref: TileRef
-
-    source_x: int
-    source_y: int
-
-    atlas_x: int
-    atlas_y: int
-
-    cell: GodotAtlasCell
-
-    width: int
-    height: int
-
-    collision: GodotTileCollision | None = None
 
 
 @dataclass(frozen=True)

@@ -166,3 +166,18 @@ def test_tile_ref_is_immutable() -> None:
 
     with pytest.raises(FrozenInstanceError):
         ref.index = 1
+
+
+def test_sheet_type_order_is_canonical() -> None:
+    expected_order = (
+        SheetType.A5,
+        SheetType.B,
+        SheetType.C,
+        SheetType.D,
+        SheetType.E,
+    )
+
+    orders = [sheet_type.order for sheet_type in expected_order]
+
+    assert orders == [0, 1, 2, 3, 4]
+    assert sorted(SheetType, key=lambda st: st.order) == list(expected_order)

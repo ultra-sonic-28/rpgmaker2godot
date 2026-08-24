@@ -43,7 +43,7 @@ class SimpleConverter:
                 )
                 for sheet_info in sorted(
                     sheet_infos,
-                    key=self._sheet_order,
+                    key=lambda info: info.sheet_type.order,
                 )
             )
 
@@ -127,18 +127,6 @@ class SimpleConverter:
             width=tile_width,
             height=tile_height,
         )
-
-    @staticmethod
-    def _sheet_order(sheet_info: SheetInfo) -> int:
-        order = {
-            SheetType.A5: 0,
-            SheetType.B: 1,
-            SheetType.C: 2,
-            SheetType.D: 3,
-            SheetType.E: 4,
-        }
-
-        return order[sheet_info.sheet_type]
 
     def _resolve_tile_properties(
         self,

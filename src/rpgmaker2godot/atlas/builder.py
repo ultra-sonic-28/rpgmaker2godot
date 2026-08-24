@@ -1,14 +1,5 @@
 from rpgmaker2godot.atlas.models import Atlas, AtlasPlacement
-from rpgmaker2godot.model import Tileset, SheetType
-
-
-SHEET_ORDER = {
-    SheetType.A5: 0,
-    SheetType.B: 1,
-    SheetType.C: 2,
-    SheetType.D: 3,
-    SheetType.E: 4,
-}
+from rpgmaker2godot.model import Tileset
 
 
 class AtlasBuilder:
@@ -18,7 +9,7 @@ class AtlasBuilder:
         sheets = tuple(
             sorted(
                 tileset.sheets,
-                key=lambda sheet: SHEET_ORDER[sheet.sheet_type],
+                key=lambda sheet: sheet.sheet_type.order,
             )
         )
 

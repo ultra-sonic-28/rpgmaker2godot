@@ -51,21 +51,13 @@ def main(argv: list[str] | None = None) -> int:
         for sheet in result.sheets:
             groups[sheet.prefix].append(sheet)
 
-        sheet_order = {
-            "A5": 0,
-            "B": 1,
-            "C": 2,
-            "D": 3,
-            "E": 4,
-        }
-
         for prefix, sheets in sorted(groups.items()):
             print()
             print(f"  {prefix or '(no prefix)'}")
 
             for sheet in sorted(
                 sheets,
-                key=lambda sheet: sheet_order[sheet.sheet_type.value],
+                key=lambda sheet: sheet.sheet_type.order,
             ):
                 print(
                     f"    {sheet.sheet_type.value}.png "

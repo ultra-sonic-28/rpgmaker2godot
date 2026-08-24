@@ -1,7 +1,9 @@
 import argparse
+import os
 import sys
 from collections import defaultdict
 from pathlib import Path
+from typing import TextIO
 
 from PIL import Image
 
@@ -13,6 +15,48 @@ from .tileset.resolver import TilePropertiesResolver
 
 TOTAL_STEPS = 4
 
+_RESET = "\x1b[0m"
+
+_STEP_STYLE = "97;44"           # white on blue
+_WARNING_STYLE = "97;48;5;208"  # white on orange (256-color)
+_ERROR_STYLE = "97;41"          # white on red
+_SUCCESS_STYLE = "97;42"        # white on green
+
+
+def _supports_colors(
+    stream: TextIO,
+) -> bool:
+    """Return whether the stream should receive ANSI colors.
+
+    Colors are disabled when the output is redirected (pipes,
+    CI logs, test captures) unless FORCE_COLOR is set, and can
+    be forced off with the standard NO_COLOR convention.
+    """
+
+    if os.environ.get("NO_COLOR"):
+        return False
+
+    if os.environ.get("FORCE_COLOR"):
+        return True
+
+    return (
+        hasattr(stream, "isatty")
+        and stream.isatty()
+    )
+
+
+def _paint(
+    text: str,
+    attributes: str,
+    stream: TextIO,
+) -> str:
+    """Wrap text in ANSI colors when the stream supports them."""
+
+    if not _supports_colors(stream):
+        return text
+
+    return f"\x1b[{attributes}m{text}{_RESET}"
+
 
 def _print_step(
     step: int,
@@ -21,7 +65,13 @@ def _print_step(
     """Print a numbered pipeline step heading."""
 
     print()
-    print(f"[{step}/{TOTAL_STEPS}] {label}")
+    print(
+        _paint(
+            f"[{step}/{TOTAL_STEPS}] {label}",
+            _STEP_STYLE,
+            sys.stdout,
+        )
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -49,6 +99,9 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     args = parser.parse_args(argv)
+
+    # Enable ANSI escape sequences on the legacy Windows console.
+    os.system("")
 
     if not args.simple:
         parser.error("Only --simple mode is currently supported.")
@@ -88,7 +141,9 @@ def main(argv: list[str] | None = None) -> int:
             print("Warnings:")
 
             for warning in result.warnings:
-                print(f"  - {warning}")
+                print(
+                    f"  - {_paint(warning, _WARNING_STYLE, sys.stdout)}"
+                )
 
         _print_step(2, "Resolving collision flags")
 
@@ -115,8 +170,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         else:
             print(
-                "  Tilesets.json not found: "
-                "generated tiles will have no collision.",
+                f"  {_paint('Tilesets.json not found: generated tiles will have no collision.', _WARNING_STYLE, sys.stderr)}",
                 file=sys.stderr,
             )
 
@@ -169,7 +223,9 @@ def main(argv: list[str] | None = None) -> int:
             )
 
         print()
-        print("Generated:")
+        print(
+            _paint("Generated:", _SUCCESS_STYLE, sys.stdout)
+        )
 
         for path in generated:
             print(f"  {path.name}")
@@ -183,7 +239,7 @@ def main(argv: list[str] | None = None) -> int:
         IndexError,
     ) as error:
         print(
-            f"Error: {error}",
+            _paint(f"Error: {error}", _ERROR_STYLE, sys.stderr),
             file=sys.stderr,
         )
         return 1

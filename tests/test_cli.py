@@ -212,6 +212,75 @@ def test_simple_cli_reports_empty_input_directory(
     assert "No supported RPG Maker MV/MZ sheets found" in captured.err
 
 
+def test_simple_cli_paints_output_when_colors_forced(
+    tmp_path: Path,
+    capsys,
+    monkeypatch,
+) -> None:
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    create_sheet(
+        input_directory,
+        "Inside_A5.png",
+        color=(255, 0, 0, 255),
+    )
+
+    monkeypatch.setenv("FORCE_COLOR", "1")
+
+    exit_code = main(
+        [
+            "--simple",
+            str(input_directory),
+            str(output_directory),
+        ]
+    )
+
+    assert exit_code == 0
+
+    captured = capsys.readouterr()
+
+    # White on blue step headings.
+    assert "\x1b[97;44m[1/4] Analyzing input directory" in captured.out
+    # White on green Generated heading.
+    assert "\x1b[97;42mGenerated:" in captured.out
+
+
+def test_simple_cli_never_paints_when_no_color_is_set(
+    tmp_path: Path,
+    capsys,
+    monkeypatch,
+) -> None:
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    create_sheet(
+        input_directory,
+        "Inside_A5.png",
+        color=(255, 0, 0, 255),
+    )
+
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.setenv("FORCE_COLOR", "1")
+
+    exit_code = main(
+        [
+            "--simple",
+            str(input_directory),
+            str(output_directory),
+        ]
+    )
+
+    assert exit_code == 0
+
+    captured = capsys.readouterr()
+
+    # NO_COLOR takes precedence over FORCE_COLOR.
+    assert "[1/4] Analyzing input directory" in captured.out
+    assert "\x1b[" not in captured.out
+    assert "\x1b[" not in captured.err
+
+
 def test_simple_cli_resolves_collision_from_tilesets_json(
     tmp_path: Path,
     capsys,

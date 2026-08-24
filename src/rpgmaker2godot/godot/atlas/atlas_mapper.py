@@ -1,10 +1,9 @@
-from rpgmaker2godot.model.tile import Tile
-
 from ...atlas.models import Atlas
 from ..model import (
     GodotAtlasMapping,
     GodotAtlasTile,
 )
+from ..tileset.collision import tile_collision_to_godot
 
 
 class GodotAtlasMapper:
@@ -34,9 +33,14 @@ class GodotAtlasMapper:
                 width=placement.width,
                 height=placement.height,
 
-                # Propagate the collision information carried
-                # by the converted Tile to the Godot atlas model.
-                collision=placement.collision,
+                # Transform the semantic RPG Maker collision into
+                # Godot geometry. This is the explicit frontier
+                # between the two collision models.
+                collision=tile_collision_to_godot(
+                    placement.collision,
+                    width=placement.width,
+                    height=placement.height,
+                ),
             )
             for placement in atlas.placements
         )

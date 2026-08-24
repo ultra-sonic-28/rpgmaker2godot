@@ -49,7 +49,7 @@ src/rpgmaker2godot/
     ├── tileset/                    # collision.py (GodotTileCollision), tileset_builder.py
     ├── resource/                   # resource.py, resource_serializer.py, resource_writer.py
     ├── export/                     # simple.py (SimpleExporter — orchestrateur)
-    └── collision/                  # tile_collision.py (has_collision — dead code)
+    └── collision/                  # tile_collision.py (has_collision — garde la frontière sémantique/géométrie)
 ```
 
 ### Pipeline de conversion

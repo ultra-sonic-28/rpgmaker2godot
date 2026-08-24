@@ -93,14 +93,3 @@ class GodotAtlasTileResource:
             raise ValueError(
                 "Atlas tile height must be > 0."
             )
-
-
-@dataclass(frozen=True)
-class GodotAtlasSourceResource:
-    resource_id: str
-    texture_resource_id: str
-
-    tile_width: int
-    tile_height: int
-
-    tiles: tuple[GodotAtlasTileResource, ...]

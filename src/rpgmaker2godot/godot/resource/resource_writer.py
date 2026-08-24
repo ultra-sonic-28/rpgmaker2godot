@@ -3,7 +3,6 @@ from pathlib import Path
 from rpgmaker2godot.godot.atlas.atlas_builder import GodotAtlasSourceBuilder
 
 from .resource import (
-    GodotAtlasSourceResource,
     GodotExtResource,
     GodotTileSetResource,
 )

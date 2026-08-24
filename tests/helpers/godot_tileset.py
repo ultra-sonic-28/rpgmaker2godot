@@ -3,12 +3,15 @@ from pathlib import Path
 from rpgmaker2godot.godot.model import (
     GodotAtlasCell,
     GodotAtlasSource,
-    GodotAtlasSourceResource,
     GodotAtlasTile,
     GodotAtlasTileResource,
     GodotTileSet,
 )
-from rpgmaker2godot.godot.resource.resource import GodotExtResource, GodotTileSetResource
+from rpgmaker2godot.godot.resource.resource import (
+    GodotAtlasSourceResource,
+    GodotExtResource,
+    GodotTileSetResource,
+)
 from rpgmaker2godot.model import SheetType, TileRef
 
 

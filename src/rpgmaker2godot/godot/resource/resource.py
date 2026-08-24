@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..model import GodotAtlasTileResource
+
 
 @dataclass(frozen=True)
 class GodotExtResource:
@@ -18,7 +20,7 @@ class GodotAtlasSourceResource:
     tile_width: int
     tile_height: int
 
-    tiles: tuple[tuple[int, int], ...]
+    tiles: tuple[GodotAtlasTileResource, ...]
 
 
 @dataclass(frozen=True)

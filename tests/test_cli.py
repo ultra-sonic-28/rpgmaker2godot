@@ -95,6 +95,19 @@ def test_simple_cli_exports_tileset(
 
     assert "Inside.png" in captured.out
 
+    # Pipeline steps are reported in order.
+    assert "[1/4] Analyzing input directory" in captured.out
+    assert "[2/4] Resolving collision flags" in captured.out
+    assert "[3/4] Converting tiles" in captured.out
+    assert "[4/4] Exporting Godot resources" in captured.out
+
+    # The conversion step reports tiles per tileset.
+    assert "Inside: 12 tiles from 3 sheets" in captured.out
+
+    # The export step reports the resulting tile grid.
+    assert "(2x6 tiles)" in captured.out
+    assert "Inside.tres  2x6 tiles" in captured.out
+
 
 def test_simple_cli_exports_multiple_tilesets(
     tmp_path: Path,
@@ -201,6 +214,7 @@ def test_simple_cli_reports_empty_input_directory(
 
 def test_simple_cli_resolves_collision_from_tilesets_json(
     tmp_path: Path,
+    capsys,
 ) -> None:
     input_directory = tmp_path / "tilesets"
     output_directory = tmp_path / "output"
@@ -230,6 +244,11 @@ def test_simple_cli_resolves_collision_from_tilesets_json(
     # Three of the four B tiles are flagged as blocking movement.
     assert content.count("/physics_layer_0/polygon_0/points") == 3
     assert "physics_layer_0/collision_layer = 1" in content
+
+    captured = capsys.readouterr()
+
+    assert "[2/4] Resolving collision flags" in captured.out
+    assert "Resolved collision from Tilesets.json" in captured.out
 
 
 def test_simple_cli_without_tilesets_json_stays_collision_free(

@@ -55,7 +55,7 @@ def make_godot_atlas_source() -> GodotAtlasSource:
         tile_height=48,
         tiles=(
             GodotAtlasTile(
-                ref=TileRef("Inside", 0, index=0),
+                ref=TileRef("Inside", SheetType.B, index=0),
                 source_x=0,
                 source_y=0,
                 atlas_x=0,
@@ -68,7 +68,7 @@ def make_godot_atlas_source() -> GodotAtlasSource:
                 height=48,
             ),
             GodotAtlasTile(
-                ref=TileRef("Inside", 1, index=0),
+                ref=TileRef("Inside", SheetType.C, index=0),
                 source_x=48,
                 source_y=0,
                 atlas_x=48,
@@ -81,7 +81,7 @@ def make_godot_atlas_source() -> GodotAtlasSource:
                 height=48,
             ),
             GodotAtlasTile(
-                ref=TileRef("Inside", 2, index=0),
+                ref=TileRef("Inside", SheetType.D, index=0),
                 source_x=0,
                 source_y=48,
                 atlas_x=0,
@@ -94,7 +94,7 @@ def make_godot_atlas_source() -> GodotAtlasSource:
                 height=48,
             ),
             GodotAtlasTile(
-                ref=TileRef("Inside", 3, index=0),
+                ref=TileRef("Inside", SheetType.E, index=0),
                 source_x=48,
                 source_y=48,
                 atlas_x=48,

@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from rpgmaker2godot.godot.tileset.collision import GodotTileCollision
+
 from ..model import TileRef
 
 
@@ -68,6 +70,8 @@ class GodotAtlasTile:
     width: int
     height: int
 
+    collision: GodotTileCollision | None = None
+
 
 @dataclass(frozen=True)
 class GodotAtlasTileResource:
@@ -77,6 +81,8 @@ class GodotAtlasTileResource:
     row: int
     width: int = 1
     height: int = 1
+
+    collision: GodotTileCollision | None = None
 
     def __post_init__(self) -> None:
         if self.column < 0:

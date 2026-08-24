@@ -2,6 +2,8 @@ from rpgmaker2godot.godot.model import GodotAtlasSource
 from rpgmaker2godot.godot.resource.resource import GodotAtlasSourceResource
 
 from rpgmaker2godot.godot.model import GodotAtlasTileResource
+from rpgmaker2godot.godot.tileset.collision import GodotTileCollision
+from rpgmaker2godot.model.tile import Tile
 
 class GodotAtlasSourceBuilder:
     """Build a serializable Godot TileSetAtlasSource resource."""
@@ -25,6 +27,7 @@ class GodotAtlasSourceBuilder:
                     tile.height,
                     source.tile_height,
                 ),
+                collision=self._map_collision(tile),
             )
             for tile in source.tiles
         )
@@ -55,3 +58,29 @@ class GodotAtlasSourceBuilder:
             )
 
         return pixels // tile_size
+
+    @staticmethod
+    def _map_collision(
+        tile: Tile,
+    ) -> GodotTileCollision | None:
+        """Map the internal tile collision to Godot geometry.
+
+        A tile without collision information remains collision-free.
+
+        At this stage, any collision is represented by a rectangle covering
+        the complete tile. This deliberately does not attempt to reproduce
+        RPG Maker's four directional passability flags yet. That geometric
+        interpretation belongs to the next collision milestone.
+        """
+
+        if tile.collision is None:
+            return None
+
+        return GodotTileCollision(
+            points=(
+                (0.0, 0.0),
+                (float(tile.width), 0.0),
+                (float(tile.width), float(tile.height)),
+                (0.0, float(tile.height)),
+            ),
+        )

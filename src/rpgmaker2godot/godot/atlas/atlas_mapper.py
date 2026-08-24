@@ -1,3 +1,5 @@
+from rpgmaker2godot.model.tile import Tile
+
 from ...atlas.models import Atlas
 from ..model import (
     GodotAtlasMapping,
@@ -31,6 +33,10 @@ class GodotAtlasMapper:
                 cell=None,
                 width=placement.width,
                 height=placement.height,
+
+                # Propagate the collision information carried
+                # by the converted Tile to the Godot atlas model.
+                collision=placement.collision,
             )
             for placement in atlas.placements
         )

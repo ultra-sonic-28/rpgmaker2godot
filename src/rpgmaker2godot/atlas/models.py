@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from rpgmaker2godot.model import TileRef
+from rpgmaker2godot.model.tile_collision import TileCollision
 
 
 @dataclass(frozen=True)
@@ -17,6 +18,8 @@ class AtlasPlacement:
 
     width: int
     height: int
+
+    collision: TileCollision | None = None
 
 
 @dataclass(frozen=True)

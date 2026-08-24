@@ -28,3 +28,4 @@ class GodotTileSetResource:
 
     texture: GodotExtResource
     atlas_source: GodotAtlasSourceResource
+    physics_layers: tuple[int, ...] = ()

@@ -70,6 +70,7 @@ class AtlasBuilder:
                         atlas_y=offset_y + tile.y,
                         width=tile.width,
                         height=tile.height,
+                        collision=tile.collision,
                     )
                 )
 

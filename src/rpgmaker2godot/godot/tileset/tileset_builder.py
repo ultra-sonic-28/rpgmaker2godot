@@ -105,6 +105,7 @@ class GodotTileSetBuilder:
                     ),
                     width=tile.width,
                     height=tile.height,
+                    collision=tile.collision,
                 )
             )
 

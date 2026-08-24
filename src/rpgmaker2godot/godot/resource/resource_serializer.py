@@ -42,14 +42,21 @@ class GodotResourceSerializer:
         )
 
         for tile in atlas.tiles:
-            lines.append(
-                f"{tile.column}:{tile.row}/0 = 0"
-            )
-
             if tile.width != 1 or tile.height != 1:
                 lines.append(
                     f"{tile.column}:{tile.row}/size_in_atlas = "
                     f"Vector2i({tile.width}, {tile.height})"
+                )
+
+            lines.append(
+                f"{tile.column}:{tile.row}/0 = 0"
+            )
+
+            if tile.collision is not None:
+                lines.append(
+                    f"{tile.column}:{tile.row}/0/"
+                    "physics_layer_0/polygon_0/points = "
+                    f"{self._serialize_polygon_points(tile.collision.points)}"
                 )
 
         lines.append("")
@@ -74,3 +81,30 @@ class GodotResourceSerializer:
         lines.append("")
 
         return "\n".join(lines)
+
+    @staticmethod
+    def _serialize_polygon_points(
+        points: tuple[tuple[float, float], ...],
+    ) -> str:
+        """Serialize polygon points as a Godot PackedVector2Array."""
+
+        coordinates: list[str] = []
+
+        for x, y in points:
+            coordinates.append(_format_coordinate(x))
+            coordinates.append(_format_coordinate(y))
+
+        return f"PackedVector2Array({', '.join(coordinates)})"
+
+
+def _format_coordinate(value: float) -> str:
+    """Format one coordinate the way Godot writes float32 values.
+
+    Integral values are written without a decimal part,
+    matching Godot's own output (e.g. "48", not "48.0").
+    """
+
+    if value == int(value):
+        return str(int(value))
+
+    return repr(value)

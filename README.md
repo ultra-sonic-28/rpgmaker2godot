@@ -25,7 +25,7 @@ rpgmaker2godot
 ### Architecture
 ```text
 src/rpgmaker2godot/
-├── cli.py                          # Point d'entrée CLI (main)
+├── cli.py                          # Point d'entrée CLI (main) — lit Tilesets.json pour résoudre les collisions
 ├── analysis/                       # Détection des feuilles PNG (TilesetDetector)
 │   ├── detector.py, models.py
 ├── conversion/                     # Transformation AnalysisResult → modèle interne

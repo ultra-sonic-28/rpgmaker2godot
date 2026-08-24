@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from PIL import Image
@@ -18,6 +19,34 @@ def create_sheet(
         size,
         color,
     ).save(directory / filename)
+
+
+def create_tilesets_json(directory: Path) -> None:
+    blocked = 0x000F
+    open_tile = 0x0000
+
+    # Global Tile IDs used by a 96x96 Inside_B sheet (2x2 tiles):
+    #   (column=0, row=0) -> 0,   (1, 0) -> 1,
+    #   (column=0, row=1) -> 16,  (1, 1) -> 17.
+    flags = (
+        [blocked, blocked]
+        + [open_tile] * 14
+        + [open_tile, blocked]
+    )
+
+    data = [
+        None,
+        {
+            "id": 1,
+            "name": "Inside",
+            "flags": flags,
+        },
+    ]
+
+    (directory / "Tilesets.json").write_text(
+        json.dumps(data),
+        encoding="utf-8",
+    )
 
 
 def test_simple_cli_exports_tileset(
@@ -168,3 +197,65 @@ def test_simple_cli_reports_empty_input_directory(
     captured = capsys.readouterr()
 
     assert "No supported RPG Maker MV/MZ sheets found" in captured.err
+
+
+def test_simple_cli_resolves_collision_from_tilesets_json(
+    tmp_path: Path,
+) -> None:
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    create_sheet(
+        input_directory,
+        "Inside_B.png",
+        color=(0, 255, 0, 255),
+    )
+
+    create_tilesets_json(input_directory)
+
+    exit_code = main(
+        [
+            "--simple",
+            str(input_directory),
+            str(output_directory),
+        ]
+    )
+
+    assert exit_code == 0
+
+    content = (output_directory / "Inside.tres").read_text(
+        encoding="utf-8",
+    )
+
+    # Three of the four B tiles are flagged as blocking movement.
+    assert content.count("/physics_layer_0/polygon_0/points") == 3
+    assert "physics_layer_0/collision_layer = 1" in content
+
+
+def test_simple_cli_without_tilesets_json_stays_collision_free(
+    tmp_path: Path,
+) -> None:
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    create_sheet(
+        input_directory,
+        "Inside_B.png",
+        color=(0, 255, 0, 255),
+    )
+
+    exit_code = main(
+        [
+            "--simple",
+            str(input_directory),
+            str(output_directory),
+        ]
+    )
+
+    assert exit_code == 0
+
+    content = (output_directory / "Inside.tres").read_text(
+        encoding="utf-8",
+    )
+
+    assert "/physics_layer_0/polygon" not in content

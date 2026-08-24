@@ -2,6 +2,7 @@ from pathlib import Path
 
 from rpgmaker2godot.atlas.models import Atlas, AtlasPlacement
 from rpgmaker2godot.godot.atlas.atlas_mapper import GodotAtlasMapper
+from rpgmaker2godot.godot.collision.tile_collision import has_collision
 from rpgmaker2godot.godot.tileset.collision import (
     GodotTileCollision,
     tile_collision_to_godot,
@@ -125,3 +126,46 @@ def test_mapper_keeps_collision_free_tiles() -> None:
     )
 
     assert mapping.tiles[0].collision is None
+
+
+def test_fully_passable_tile_stays_collision_free() -> None:
+    result = tile_collision_to_godot(
+        TileCollision(
+            block_down=False,
+            block_left=False,
+            block_right=False,
+            block_up=False,
+        ),
+        width=48,
+        height=48,
+    )
+
+    assert result is None
+
+
+def test_has_collision_rejects_fully_passable_model() -> None:
+    assert has_collision(None) is False
+
+    assert (
+        has_collision(
+            TileCollision(
+                block_down=False,
+                block_left=False,
+                block_right=False,
+                block_up=False,
+            ),
+        )
+        is False
+    )
+
+    assert (
+        has_collision(
+            TileCollision(
+                block_down=True,
+                block_left=False,
+                block_right=False,
+                block_up=False,
+            ),
+        )
+        is True
+    )

@@ -6,6 +6,8 @@ from pathlib import Path
 from .analysis.detector import TilesetDetector
 from .conversion.converter import SimpleConverter
 from .godot.export.simple import SimpleExporter
+from .tileset.reader import TilesetsJsonReader
+from .tileset.resolver import TilePropertiesResolver
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -72,7 +74,37 @@ def main(argv: list[str] | None = None) -> int:
             for warning in result.warnings:
                 print(f"  - {warning}")
 
-        converter = SimpleConverter()
+        tilesets_json_path = args.input / "Tilesets.json"
+
+        if tilesets_json_path.is_file():
+            tileset_flags = TilesetsJsonReader().read_flags(
+                tilesets_json_path,
+            )
+
+            converter = SimpleConverter(
+                tile_properties_resolver=(
+                    TilePropertiesResolver(
+                        {
+                            flags.name: flags
+                            for flags in tileset_flags
+                        }
+                    )
+                ),
+            )
+
+            print()
+            print(
+                f"Resolved collision from {tilesets_json_path.name}"
+            )
+        else:
+            print(
+                "Warning: Tilesets.json not found; "
+                "generated tiles will have no collision.",
+                file=sys.stderr,
+            )
+
+            converter = SimpleConverter()
+
         conversion = converter.convert(result)
 
         exporter = SimpleExporter()

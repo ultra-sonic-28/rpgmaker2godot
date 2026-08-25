@@ -73,6 +73,14 @@ def write_validation_script(
         tuple[tuple[int, int], tuple[int, int]],
         ...,
     ] | None = None,
+    expected_collision_polygons: tuple[
+        tuple[tuple[int, int], tuple[float, ...]],
+        ...,
+    ] | None = None,
+    expected_collision_free_cells: tuple[
+        tuple[int, int],
+        ...,
+    ] | None = None,
 ) -> Path:
     script_path = project_directory / "validate.gd"
 
@@ -186,6 +194,114 @@ def write_validation_script(
                 return
 """
 
+    collision_polygon_checks = ""
+
+    if expected_collision_polygons is not None:
+        polygon_checks: list[str] = []
+
+        polygon_checks.append(
+            """
+    # -------------------------------------------------------------------------
+    # Validate that the TileSet exposes a physics layer.
+    # -------------------------------------------------------------------------
+    if tileset.get_physics_layers_count() < 1:
+        fail(
+            "Expected at least one physics layer on the TileSet"
+        )
+        return
+"""
+        )
+
+        for cell, points in expected_collision_polygons:
+            column, row = cell
+
+            pairs = list(zip(points[::2], points[1::2]))
+            appends = "\n".join(
+                f"    expected_points_{column}_{row}.append("
+                f"Vector2({repr(float(x))}, {repr(float(y))}))"
+                for x, y in pairs
+            )
+
+            polygon_checks.append(
+                f"""
+    # -------------------------------------------------------------------------
+    # Validate the collision polygon at ({column}, {row}).
+    # -------------------------------------------------------------------------
+    if not atlas_source.has_tile(Vector2i({column}, {row})):
+        fail(
+            "Missing expected tile at Vector2i({column}, {row})"
+        )
+        return
+
+    var data_{column}_{row} := (
+        atlas_source.get_tile_data(Vector2i({column}, {row}), 0)
+    )
+
+    if data_{column}_{row} == null:
+        fail(
+            "Missing tile data at Vector2i({column}, {row})"
+        )
+        return
+
+    if data_{column}_{row}.get_collision_polygons_count(0) != 1:
+        fail(
+            "Unexpected collision polygon count at Vector2i({column}, {row}): %d"
+            % data_{column}_{row}.get_collision_polygons_count(0)
+        )
+        return
+
+    var actual_points_{column}_{row} := (
+        data_{column}_{row}.get_collision_polygon_points(0, 0)
+    )
+    var expected_points_{column}_{row} := PackedVector2Array()
+{appends}
+
+    if actual_points_{column}_{row}.size() != expected_points_{column}_{row}.size():
+        fail(
+            "Unexpected collision polygon size at Vector2i({column}, {row}): %d, must be %d"
+            % [
+                actual_points_{column}_{row}.size(),
+                expected_points_{column}_{row}.size(),
+            ]
+        )
+        return
+
+    if actual_points_{column}_{row} != expected_points_{column}_{row}:
+        fail(
+            "Unexpected collision polygon at Vector2i({column}, {row}): %s, must be %s"
+            % [
+                actual_points_{column}_{row},
+                expected_points_{column}_{row},
+            ]
+        )
+        return
+"""
+            )
+
+        collision_polygon_checks = "".join(polygon_checks)
+
+    collision_free_checks = ""
+
+    if expected_collision_free_cells is not None:
+        free_entries: list[str] = []
+
+        for cell in expected_collision_free_cells:
+            column, row = cell
+
+            free_entries.append(
+                f"    validate_collision_free("
+                f"atlas_source, Vector2i({column}, {row}))"
+            )
+
+        free_calls = "\n".join(free_entries)
+
+        collision_free_checks = f"""
+    # -------------------------------------------------------------------------
+    # Validate that tiles without collision stay collision-free.
+    # -------------------------------------------------------------------------
+{free_calls}
+"""
+
     script_path.write_text(
         f"""\
 extends SceneTree
@@ -193,6 +309,34 @@ extends SceneTree
 func fail(message: String) -> void:
     push_error(message)
     quit(1)
+
+
+func validate_collision_free(
+    source: TileSetAtlasSource,
+    cell: Vector2i,
+) -> void:
+    if not source.has_tile(cell):
+        fail(
+            "Missing expected tile at %s"
+            % cell
+        )
+        return
+
+    var data := source.get_tile_data(cell, 0)
+
+    if data == null:
+        fail(
+            "Missing tile data at %s"
+            % cell
+        )
+        return
+
+    if data.get_collision_polygons_count(0) != 0:
+        fail(
+            "Unexpected collision polygons at %s: %d"
+            % [cell, data.get_collision_polygons_count(0)]
+        )
+        return
 
 
 func _initialize() -> void:
@@ -257,6 +401,8 @@ func _initialize() -> void:
 
 {all_cells_validation}
 {missing_cell_check}
+{collision_polygon_checks}
+{collision_free_checks}
 {tile_size_checks}
     quit(0)
 """,

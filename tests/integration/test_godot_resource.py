@@ -8,6 +8,11 @@ import pytest
 from rpgmaker2godot.analysis.detector import TilesetDetector
 from rpgmaker2godot.conversion.converter import SimpleConverter
 from rpgmaker2godot.godot.export.simple import SimpleExporter
+from rpgmaker2godot.model import ConversionResult, SheetType, TileRef
+from rpgmaker2godot.model.sheet import Sheet
+from rpgmaker2godot.model.tile import Tile
+from rpgmaker2godot.model.tile_collision import TileCollision
+from rpgmaker2godot.model.tileset import Tileset
 from tests.test_cli import create_sheet
 from tests.helpers.godot_atlas import make_multi_cell_conversion
 from tests.helpers.godot_integration import find_godot, write_project, write_validation_script
@@ -332,6 +337,172 @@ def test_generated_tileset_preserves_multi_cell_tile_sizes(
 
     assert result.returncode == 0, (
         "Godot failed to validate multi-cell TileSet.\n\n"
+        f"STDOUT:\n{result.stdout}\n\n"
+        f"STDERR:\n{result.stderr}"
+    )
+
+
+def make_conversion_with_collisions(
+    source_path: Path,
+) -> ConversionResult:
+    """Build a 2x2 B-sheet conversion carrying collision flags.
+
+    Tiles (0,0), (1,0) and (1,1) block movement; tile (0,1) carries
+    no collision information at all.
+    """
+
+    tile_size = 48
+
+    blocked = TileCollision(
+        block_down=True,
+        block_left=True,
+        block_right=True,
+        block_up=True,
+    )
+    partial = TileCollision(
+        block_down=True,
+        block_left=False,
+        block_right=False,
+        block_up=False,
+    )
+
+    def make_tile(
+        index: int,
+        column: int,
+        row: int,
+        collision: TileCollision | None,
+    ) -> Tile:
+        return Tile(
+            ref=TileRef(
+                tileset="Inside",
+                sheet_type=SheetType.B,
+                index=index,
+            ),
+            column=column,
+            row=row,
+            x=column * tile_size,
+            y=row * tile_size,
+            width=tile_size,
+            height=tile_size,
+            collision=collision,
+        )
+
+    tiles = (
+        make_tile(0, 0, 0, blocked),
+        make_tile(1, 1, 0, partial),
+        make_tile(2, 0, 1, None),
+        make_tile(3, 1, 1, partial),
+    )
+
+    sheet = Sheet(
+        sheet_type=SheetType.B,
+        source_path=source_path,
+        width=2 * tile_size,
+        height=2 * tile_size,
+        tile_width=tile_size,
+        tile_height=tile_size,
+        columns=2,
+        rows=2,
+        tiles=tiles,
+    )
+
+    return ConversionResult(
+        tilesets=(
+            Tileset(
+                name="Inside",
+                sheets=(sheet,),
+            ),
+        ),
+    )
+
+
+@pytest.mark.integration
+def test_generated_tileset_loads_collision_polygons_in_godot(
+    tmp_path: Path,
+) -> None:
+    godot = find_godot()
+
+    if godot is None:
+        pytest.skip(
+            "Godot executable not available. "
+            "Set the GODOT environment variable."
+        )
+
+    project_directory = tmp_path / "godot"
+    generated_directory = project_directory / "generated"
+
+    generated_directory.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    source_path = tmp_path / "tilesets" / "Inside_B.png"
+
+    create_sheet(
+        source_path.parent,
+        source_path.name,
+        size=(96, 96),
+    )
+
+    conversion = make_conversion_with_collisions(source_path)
+
+    SimpleExporter(
+        godot_project_root=project_directory,
+    ).export(
+        conversion,
+        generated_directory,
+    )
+
+    write_project(project_directory)
+
+    full_tile_points = (
+        0.0, 0.0, 48.0, 0.0, 48.0, 48.0, 0.0, 48.0,
+    )
+
+    script_path = write_validation_script(
+        project_directory,
+        expected_atlas_size=(96, 96),
+        expected_columns=2,
+        expected_rows=2,
+        validate_all_cells=True,
+        expected_collision_polygons=(
+            ((0, 0), full_tile_points),
+            ((1, 0), full_tile_points),
+            ((1, 1), full_tile_points),
+        ),
+        expected_collision_free_cells=((0, 1),),
+    )
+
+    subprocess.run(
+        [
+            godot,
+            "--headless",
+            "--path",
+            str(project_directory),
+            "--editor",
+            "--quit",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    result = subprocess.run(
+        [
+            godot,
+            "--headless",
+            "--path",
+            str(project_directory),
+            "--script",
+            str(script_path.name),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, (
+        "Godot failed to validate collision polygons.\n\n"
         f"STDOUT:\n{result.stdout}\n\n"
         f"STDERR:\n{result.stderr}"
     )

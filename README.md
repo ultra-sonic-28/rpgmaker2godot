@@ -25,37 +25,37 @@ rpgmaker2godot
 ### Architecture
 ```text
 src/rpgmaker2godot/
-├── cli.py                          # Point d'entrée CLI (main) — lit Tilesets.json pour résoudre les collisions
-├── analysis/                       # Détection des feuilles PNG (TilesetDetector)
+├── cli.py                          # CLI entry point (main) — reads Tilesets.json to resolve collisions
+├── analysis/                       # PNG sheet detection (TilesetDetector)
 │   ├── detector.py, models.py
-├── conversion/                     # Transformation AnalysisResult → modèle interne
+├── conversion/                     # AnalysisResult → internal model transformation
 │   └── converter.py                # SimpleConverter
-├── tileset/                        # Lecture/analyse des drapeaux RPG Maker
+├── tileset/                        # Reading/parsing of RPG Maker flags
 │   ├── reader.py                   # TilesetsJsonReader
-│   ├── flags.py                    # decode_tile_flags() — décodage des 16 bits
+│   ├── flags.py                    # decode_tile_flags() — 16-bit decoding
 │   ├── model.py                    # TileProperties, TilesetFlags
 │   ├── resolver.py                 # TilePropertiesResolver
 │   ├── collision.py                # tile_properties_to_collision()
-│   └── tile_id.py                  # Conversion TileRef → global Tile ID
-├── model/                          # Modèle interne partagé (immuable)
+│   └── tile_id.py                  # TileRef → global Tile ID conversion
+├── model/                          # Shared internal model (immutable)
 │   ├── enums.py, sheet.py, tile.py, tileset.py, tile_collision.py
-├── atlas/                          # Construction et écriture d'atlases PNG
+├── atlas/                          # PNG atlas building and writing
 │   ├── builder.py, models.py, writer.py
-├── image/                          # Extraction d'images (PIL/Pillow)
+├── image/                          # Image extraction (PIL/Pillow)
 │   ├── extractor.py, source.py
-├── utils/                          # Messages console (banner rich)
-└── godot/                          # Génération des ressources Godot
-    ├── model.py                    # Modèles Godot (GodotTileSet, etc.)
+├── utils/                          # Console messages (rich banner)
+└── godot/                          # Godot resource generation
+    ├── model.py                    # Godot models (GodotTileSet, etc.)
     ├── atlas/                      # atlas_builder.py, atlas_mapper.py
     ├── tileset/                    # collision.py (GodotTileCollision), tileset_builder.py
     ├── resource/                   # resource.py, resource_serializer.py, resource_writer.py
-    ├── export/                     # simple.py (SimpleExporter — orchestrateur)
-    └── collision/                  # tile_collision.py (has_collision — garde la frontière sémantique/géométrie)
+    ├── export/                     # simple.py (SimpleExporter — orchestrator)
+    └── collision/                  # tile_collision.py (has_collision — guards the semantic/geometry boundary)
 ```
 
 ### Logging
 
-Le pipeline est silencieux par défaut. Déposez un fichier `logging.json` dans le répertoire d'exécution pour activer les logs de débogage (drapeaux bruts, propriétés décodées et polygones générés, tuile par tuile). Les enregistrements sont écrits **uniquement dans le fichier configuré** — jamais dans la console :
+The pipeline is silent by default. Drop a `logging.json` file into the working directory to enable debug logging (raw flags, decoded properties and generated polygons, tile by tile). Records are written **to the configured file only** — never to the console:
 
 ```json
 {
@@ -66,29 +66,29 @@ Le pipeline est silencieux par défaut. Déposez un fichier `logging.json` dans 
 }
 ```
 
-* `enabled` : interrupteur principal ;
-* `level` : sévérité minimale (`DEBUG`, `INFO`, `WARNING`, `ERROR`) ;
-* `file` : **requis** — destination unique des enregistrements ; sans ce champ, les logs restent désactivés ;
-* `mode` : `APPEND` (défaut) ajoute les enregistrements à la fin du fichier existant, `OVERWRITE` recrée le fichier à chaque exécution — toute valeur absente ou inconnue retombe sur `APPEND`.
+* `enabled`: master switch;
+* `level`: minimum severity (`DEBUG`, `INFO`, `WARNING`, `ERROR`);
+* `file`: **required** — the sole destination of the records; without this field, logging stays disabled;
+* `mode`: `APPEND` (default) appends records at the end of the existing file, `OVERWRITE` recreates the file on every run — any missing or unknown value falls back to `APPEND`.
 
-### Exécutable Windows
+### Windows executable
 
-Un binaire autonome est généré dans `dist\rpgmaker2godot.exe` (toutes les dépendances — Pillow, rich — sont embarquées, aucun interpréteur Python requis sur la machine cible) :
+A standalone binary is generated in `dist\rpgmaker2godot.exe` (all dependencies — Pillow, rich — are bundled, no Python interpreter required on the target machine):
 
 ```powershell
 pip install -e ".[build]"
 powershell -ExecutionPolicy Bypass -File scripts\build_exe.ps1
 ```
 
-La recette de build est décrite par le fichier versionné `rpgmaker2godot.spec` (onefile, console, métadonnées du paquet embarquées pour la bannière).
+The build recipe is described by the versioned `rpgmaker2godot.spec` file (onefile, console, package metadata embedded for the banner).
 
-Chaque génération **incrémente automatiquement l'entrée numérique `build`** de la section `[project]` de `pyproject.toml` ; ce numéro est affiché par la bannière juste après la version : `rpgmaker2godot v0.1.0 build 35`.
+Every generation **automatically increments the numeric `build` entry** of the `[project]` section of `pyproject.toml`; this number is displayed by the banner right after the version: `rpgmaker2godot v0.1.0 build 35`.
 
-* premier démarrage plus lent : l'exécutable s'extrait dans `%TEMP%` ;
-* binaire non signé : SmartScreen ou l'antivirus peuvent afficher un avertissement à l'exécution.
+* slower first startup: the executable extracts itself into `%TEMP%`;
+* unsigned binary: SmartScreen or your antivirus may show a warning when running it.
 
-### Pipeline de conversion
-Pipeline de conversion RPG Maker → Godot
+### Conversion pipeline
+RPG Maker → Godot conversion pipeline
 
 ```mermaid
 flowchart LR
@@ -102,7 +102,7 @@ flowchart LR
     G --> H["resource_writer"]
     H --> I[".tres"]
 
-    A -.->|"scan du répertoire<br/>regex A5/B/C/D/E.png"| A
-    B -.->|"création des Tile<br/>TileRef + coords"| B
+    A -.->|"directory scan<br/>A5/B/C/D/E.png regex"| A
+    B -.->|"Tile creation<br/>TileRef + coordinates"| B
     
 ```

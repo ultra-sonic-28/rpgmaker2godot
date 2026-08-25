@@ -12,6 +12,7 @@ from .conversion.converter import SimpleConverter
 from .godot.export.simple import SimpleExporter
 from .tileset.reader import TilesetsJsonReader
 from .tileset.resolver import TilePropertiesResolver
+from .utils.messages import display_program_banner
 
 TOTAL_STEPS = 4
 
@@ -102,6 +103,8 @@ def main(argv: list[str] | None = None) -> int:
 
     # Enable ANSI escape sequences on the legacy Windows console.
     os.system("")
+
+    display_program_banner()
 
     if not args.simple:
         parser.error("Only --simple mode is currently supported.")

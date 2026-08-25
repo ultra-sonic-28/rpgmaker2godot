@@ -95,6 +95,9 @@ def test_simple_cli_exports_tileset(
 
     assert "Inside.png" in captured.out
 
+    # The program banner is displayed on startup.
+    assert "rpgmaker2godot v0.1.0" in captured.out
+
     # Pipeline steps are reported in order.
     assert "[1/4] Analyzing input directory" in captured.out
     assert "[2/4] Resolving collision flags" in captured.out

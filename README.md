@@ -61,13 +61,15 @@ Le pipeline est silencieux par défaut. Déposez un fichier `logging.json` dans 
 {
   "enabled": true,
   "level": "DEBUG",
-  "file": "rpgmaker2godot.log"
+  "file": "rpgmaker2godot.log",
+  "mode": "OVERWRITE"
 }
 ```
 
 * `enabled` : interrupteur principal ;
 * `level` : sévérité minimale (`DEBUG`, `INFO`, `WARNING`, `ERROR`) ;
-* `file` : **requis** — destination unique des enregistrements ; sans ce champ, les logs restent désactivés.
+* `file` : **requis** — destination unique des enregistrements ; sans ce champ, les logs restent désactivés ;
+* `mode` : `APPEND` (défaut) ajoute les enregistrements à la fin du fichier existant, `OVERWRITE` recrée le fichier à chaque exécution — toute valeur absente ou inconnue retombe sur `APPEND`.
 
 ### Pipeline de conversion
 Pipeline de conversion RPG Maker → Godot

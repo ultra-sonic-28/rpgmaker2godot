@@ -192,3 +192,149 @@ def test_reconfiguration_replaces_handlers(tmp_path: Path) -> None:
 
     # Reconfiguring must not stack handlers.
     assert len(root.handlers) == handlers_after_first
+
+
+def test_overwrite_mode_recreates_the_file(tmp_path: Path) -> None:
+    log_file = tmp_path / "run.log"
+    log_file.write_text(
+        "stale records from a previous run\n",
+        encoding="utf-8",
+    )
+
+    configure_logging(
+        write_config(
+            tmp_path,
+            {
+                "enabled": True,
+                "level": "DEBUG",
+                "file": str(log_file),
+                "mode": "OVERWRITE",
+            },
+        ),
+    )
+
+    logger = get_logger(LOGGER_NAME)
+    logger.info("fresh start")
+
+    logging.shutdown()
+
+    content = log_file.read_text(encoding="utf-8")
+
+    assert "previous run" not in content
+    assert "fresh start" in content
+
+
+def test_mode_matching_is_case_insensitive(tmp_path: Path) -> None:
+    log_file = tmp_path / "run.log"
+    log_file.write_text("to be wiped\n", encoding="utf-8")
+
+    configure_logging(
+        write_config(
+            tmp_path,
+            {
+                "enabled": True,
+                "file": str(log_file),
+                "mode": "overwrite",
+            },
+        ),
+    )
+
+    get_logger(LOGGER_NAME).info("only this survives")
+    logging.shutdown()
+
+    content = log_file.read_text(encoding="utf-8")
+
+    assert "to be wiped" not in content
+    assert "only this survives" in content
+
+
+def test_append_mode_keeps_previous_records(tmp_path: Path) -> None:
+    log_file = tmp_path / "run.log"
+    log_file.write_text(
+        "records from a previous run\n",
+        encoding="utf-8",
+    )
+
+    configure_logging(
+        write_config(
+            tmp_path,
+            {
+                "enabled": True,
+                "level": "DEBUG",
+                "file": str(log_file),
+                "mode": "APPEND",
+            },
+        ),
+    )
+
+    logger = get_logger(LOGGER_NAME)
+    logger.info("appended record")
+
+    logging.shutdown()
+
+    content = log_file.read_text(encoding="utf-8")
+
+    assert "records from a previous run" in content
+    assert "appended record" in content
+
+
+def test_absent_mode_defaults_to_appending(tmp_path: Path) -> None:
+    log_file = tmp_path / "run.log"
+    log_file.write_text(
+        "kept without any mode setting\n",
+        encoding="utf-8",
+    )
+
+    configure_logging(
+        write_config(
+            tmp_path,
+            {
+                "enabled": True,
+                "level": "DEBUG",
+                "file": str(log_file),
+            },
+        ),
+    )
+
+    logger = get_logger(LOGGER_NAME)
+    logger.info("newest record")
+
+    logging.shutdown()
+
+    content = log_file.read_text(encoding="utf-8")
+
+    assert "kept without any mode setting" in content
+    assert "newest record" in content
+
+
+@pytest.mark.parametrize("raw_mode", ["ROTATE", "", 42, None])
+def test_unrecognized_mode_falls_back_to_appending(
+    tmp_path: Path,
+    raw_mode: object,
+) -> None:
+    log_file = tmp_path / "run.log"
+    log_file.write_text(
+        "survives bogus modes\n",
+        encoding="utf-8",
+    )
+
+    configure_logging(
+        write_config(
+            tmp_path,
+            {
+                "enabled": True,
+                "file": str(log_file),
+                "mode": raw_mode,
+            },
+        ),
+    )
+
+    logger = get_logger(LOGGER_NAME)
+    logger.warning("still appended")
+
+    logging.shutdown()
+
+    content = log_file.read_text(encoding="utf-8")
+
+    assert "survives bogus modes" in content
+    assert "still appended" in content

@@ -12,12 +12,16 @@ explicit path to :func:`configure_logging`) to activate:
     {
         "enabled": true,
         "level": "DEBUG",
-        "file": "rpgmaker2godot.log"
+        "file": "rpgmaker2godot.log",
+        "mode": "OVERWRITE"
     }
 
 * ``enabled``: master switch (absent or false keeps logging off);
 * ``level``: minimal severity — DEBUG, INFO, WARNING, ERROR;
-* ``file``: required path — the sole destination of the records.
+* ``file``: required path — the sole destination of the records;
+* ``mode``: ``OVERWRITE`` recreates the file at startup while
+  ``APPEND`` adds records at its end — absent or unrecognized
+  values fall back to ``APPEND``.
 """
 
 import json
@@ -26,6 +30,17 @@ from pathlib import Path
 
 _LOGGER_ROOT = "rpgmaker2godot"
 _DEFAULT_CONFIG_FILENAME = "logging.json"
+
+# Default fate of an existing log file when logging activates:
+# records keep being added at the end of the file.
+_DEFAULT_LOG_MODE = "APPEND"
+
+# Supported values of the "mode" setting, mapped to the open mode
+# they translate to for the underlying FileHandler.
+_FILE_MODES = {
+    "APPEND": "a",
+    "OVERWRITE": "w",
+}
 
 _SILENT_LEVEL = logging.CRITICAL + 1
 
@@ -86,6 +101,7 @@ def configure_logging(
 
     file_handler = logging.FileHandler(
         output_file,
+        mode=_parse_mode(settings.get("mode", _DEFAULT_LOG_MODE)),
         encoding="utf-8",
     )
     file_handler.setFormatter(
@@ -127,6 +143,19 @@ def _parse_level(
     level_name = str(raw_level).upper()
 
     return getattr(logging, level_name, logging.DEBUG)
+
+
+def _parse_mode(
+    raw_mode: object,
+) -> str:
+    """Translate a textual log-file mode into its open-mode flag."""
+
+    mode_name = str(raw_mode).upper()
+
+    return _FILE_MODES.get(
+        mode_name,
+        _FILE_MODES[_DEFAULT_LOG_MODE],
+    )
 
 
 def _remove_handlers(

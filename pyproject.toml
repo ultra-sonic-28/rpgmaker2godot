@@ -17,6 +17,9 @@ dependencies = [
     "rich>=13.0",
 ]
 
+[project.optional-dependencies]
+build = ["pyinstaller>=6.10"]
+
 [project.scripts]
 rpgmaker2godot = "rpgmaker2godot.cli:main"
 

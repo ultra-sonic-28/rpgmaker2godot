@@ -17,6 +17,7 @@ pip-wheel-metadata/
 manifest/
 *.manifest
 *.spec
+!rpgmaker2godot.spec
 pip-log.txt
 *.whl
 

@@ -71,6 +71,20 @@ Le pipeline est silencieux par défaut. Déposez un fichier `logging.json` dans 
 * `file` : **requis** — destination unique des enregistrements ; sans ce champ, les logs restent désactivés ;
 * `mode` : `APPEND` (défaut) ajoute les enregistrements à la fin du fichier existant, `OVERWRITE` recrée le fichier à chaque exécution — toute valeur absente ou inconnue retombe sur `APPEND`.
 
+### Exécutable Windows
+
+Un binaire autonome est généré dans `dist\rpgmaker2godot.exe` (toutes les dépendances — Pillow, rich — sont embarquées, aucun interpréteur Python requis sur la machine cible) :
+
+```powershell
+pip install -e ".[build]"
+powershell -ExecutionPolicy Bypass -File scripts\build_exe.ps1
+```
+
+La recette de build est décrite par le fichier versionné `rpgmaker2godot.spec` (onefile, console, métadonnées du paquet embarquées pour la bannière).
+
+* premier démarrage plus lent : l'exécutable s'extrait dans `%TEMP%` ;
+* binaire non signé : SmartScreen ou l'antivirus peuvent afficher un avertissement à l'exécution.
+
 ### Pipeline de conversion
 Pipeline de conversion RPG Maker → Godot
 

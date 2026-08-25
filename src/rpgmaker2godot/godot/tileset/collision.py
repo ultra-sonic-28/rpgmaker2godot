@@ -8,11 +8,10 @@ from rpgmaker2godot.model.tile_collision import TileCollision
 class GodotTileCollision:
     """Collision geometry associated with one Godot atlas tile.
 
-    The polygon is expressed in tile-local pixel coordinates.
-
-    The origin (0, 0) corresponds to the top-left corner of the tile.
-    Coordinates therefore use the same coordinate system as Godot's
-    TileSet collision polygons.
+    The polygon is expressed in tile-local pixel coordinates,
+    relative to the CENTER of the tile — matching Godot's own
+    convention in the TileSet editor (a 48x48 tile therefore spans
+    from (-24, -24) to (24, 24)).
 
     Keeping the geometry independent from the .tres serialization format
     allows the resource writer to remain responsible solely for translating
@@ -55,8 +54,10 @@ def tile_collision_to_godot(
     A tile without collision information must stay collision-free.
 
     At this stage, any collision is represented by a rectangle covering
-    the complete tile area (width x height pixels, origin at the top-left
-    corner). The directional passability flags carried by TileCollision
+    the complete tile area, centered on the tile origin:
+    from (-width/2, -height/2) to (+width/2, +height/2).
+
+    The directional passability flags carried by TileCollision
     are deliberately not interpreted into partial geometry yet; that
     translation belongs to a dedicated collision milestone.
     """
@@ -64,11 +65,14 @@ def tile_collision_to_godot(
     if not has_collision(collision):
         return None
 
+    half_width = width / 2.0
+    half_height = height / 2.0
+
     return GodotTileCollision(
         points=(
-            (0.0, 0.0),
-            (float(width), 0.0),
-            (float(width), float(height)),
-            (0.0, float(height)),
+            (-half_width, -half_height),
+            (half_width, -half_height),
+            (half_width, half_height),
+            (-half_width, half_height),
         ),
     )

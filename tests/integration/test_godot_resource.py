@@ -455,8 +455,9 @@ def test_generated_tileset_loads_collision_polygons_in_godot(
 
     write_project(project_directory)
 
+    # Godot collision polygons are relative to the tile CENTER.
     full_tile_points = (
-        0.0, 0.0, 48.0, 0.0, 48.0, 48.0, 0.0, 48.0,
+        -24.0, -24.0, 24.0, -24.0, 24.0, 24.0, -24.0, 24.0,
     )
 
     script_path = write_validation_script(

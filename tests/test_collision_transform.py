@@ -11,11 +11,13 @@ from rpgmaker2godot.model import SheetType, TileRef
 from rpgmaker2godot.model.tile_collision import TileCollision
 
 
+# Centered coordinates for a 48x48 tile (Godot convention:
+# polygon points are relative to the tile center).
 FULL_TILE_RECTANGLE = (
-    (0.0, 0.0),
-    (48.0, 0.0),
-    (48.0, 48.0),
-    (0.0, 48.0),
+    (-24.0, -24.0),
+    (24.0, -24.0),
+    (24.0, 24.0),
+    (-24.0, 24.0),
 )
 
 
@@ -58,10 +60,10 @@ def test_rectangle_covers_multi_cell_dimensions() -> None:
 
     assert result == GodotTileCollision(
         points=(
-            (0.0, 0.0),
-            (96.0, 0.0),
-            (96.0, 144.0),
-            (0.0, 144.0),
+            (-48.0, -72.0),
+            (48.0, -72.0),
+            (48.0, 72.0),
+            (-48.0, 72.0),
         ),
     )
 

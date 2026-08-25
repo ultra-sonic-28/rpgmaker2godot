@@ -13,6 +13,7 @@ from rpgmaker2godot.model import (
 from rpgmaker2godot.model.enums import SheetType
 from rpgmaker2godot.tileset.collision import tile_properties_to_collision
 from rpgmaker2godot.tileset.resolver import TilePropertiesResolver
+from rpgmaker2godot.tileset.tile_id import tile_to_tile_id
 
 
 class SimpleConverter:
@@ -170,6 +171,8 @@ class SimpleConverter:
 
         collision = tile_properties_to_collision(
             properties,
+            tile_id=tile_to_tile_id(tile),
+            coord=(tile.column, tile.row),
         )
 
         return replace(

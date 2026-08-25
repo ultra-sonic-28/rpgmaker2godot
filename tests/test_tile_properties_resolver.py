@@ -111,3 +111,50 @@ def test_rejects_tile_id_outside_flags() -> None:
 
     with pytest.raises(IndexError):
         resolver.resolve(tile)
+
+
+def test_resolve_logs_tile_coordinates(
+    caplog,
+) -> None:
+    import logging
+
+    tile = make_tile(
+        column=5,
+        row=7,
+    )
+
+    tile_id = 7 * 16 + 5
+
+    tileset = TilesetFlags(
+        id=1,
+        name="Inside",
+        flags=(0,) * (tile_id + 1),
+    )
+
+    resolver = TilePropertiesResolver({"Inside": tileset})
+
+    resolver_logger = "rpgmaker2godot.tileset.resolver"
+
+    with caplog.at_level(logging.DEBUG, logger=resolver_logger):
+        properties = resolver.resolve(tile)
+
+    assert properties == TileProperties(
+        can_pass_down=True,
+        can_pass_left=True,
+        can_pass_right=True,
+        can_pass_up=True,
+        is_star=False,
+        is_ladder=False,
+        is_bush=False,
+        is_counter=False,
+        is_damage_floor=False,
+        terrain_tag=0,
+    )
+
+    messages = [record.getMessage() for record in caplog.records]
+
+    assert any(
+        f"resolve Inside tile_id={tile_id} coord=(5, 7) raw_flags=0x0000"
+        in message
+        for message in messages
+    )

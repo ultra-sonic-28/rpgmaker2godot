@@ -53,11 +53,14 @@ class GodotResourceSerializer:
             )
 
             if tile.collision is not None:
-                lines.append(
-                    f"{tile.column}:{tile.row}/0/"
-                    "physics_layer_0/polygon_0/points = "
-                    f"{self._serialize_polygon_points(tile.collision.points)}"
-                )
+                for polygon_index, polygon in enumerate(
+                    tile.collision.polygons,
+                ):
+                    lines.append(
+                        f"{tile.column}:{tile.row}/0/"
+                        f"physics_layer_0/polygon_{polygon_index}/points = "
+                        f"{self._serialize_polygon_points(polygon)}"
+                    )
 
         lines.append("")
 

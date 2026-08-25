@@ -459,6 +459,9 @@ def test_generated_tileset_loads_collision_polygons_in_godot(
     full_tile_points = (
         -24.0, -24.0, 24.0, -24.0, 24.0, 24.0, -24.0, 24.0,
     )
+    bottom_band_points = (
+        -24.0, 16.0, 24.0, 16.0, 24.0, 24.0, -24.0, 24.0,
+    )
 
     script_path = write_validation_script(
         project_directory,
@@ -467,9 +470,11 @@ def test_generated_tileset_loads_collision_polygons_in_godot(
         expected_rows=2,
         validate_all_cells=True,
         expected_collision_polygons=(
+            # (0, 0) blocks every side: fully solid tile.
             ((0, 0), full_tile_points),
-            ((1, 0), full_tile_points),
-            ((1, 1), full_tile_points),
+            # (1, 0) and (1, 1) only block downwards: bottom band.
+            ((1, 0), bottom_band_points),
+            ((1, 1), bottom_band_points),
         ),
         expected_collision_free_cells=((0, 1),),
     )

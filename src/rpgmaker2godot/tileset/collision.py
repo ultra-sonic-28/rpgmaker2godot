@@ -1,9 +1,15 @@
 from rpgmaker2godot.model.tile_collision import TileCollision
 from rpgmaker2godot.tileset.model import TileProperties
+from ..utils.log import get_logger
+
+logger = get_logger("tileset.collision")
 
 
 def tile_properties_to_collision(
     properties: TileProperties,
+    *,
+    tile_id: int | None = None,
+    coord: tuple[int, int] | None = None,
 ) -> TileCollision:
     """Convert RPG Maker tile properties into collision semantics.
 
@@ -35,14 +41,38 @@ def tile_properties_to_collision(
     Args:
         properties:
             Semantic RPG Maker properties associated with the tile.
+        tile_id: Diagnostic only — global RPG Maker Tile ID, included
+            in the debug log when provided.
+        coord: Diagnostic only — (column, row) of the tile inside its
+            RPG Maker sheet, included in the debug log when provided.
 
     Returns:
         The directional collision representation of the tile.
     """
 
-    return TileCollision(
+    result = TileCollision(
         block_down=not properties.can_pass_down,
         block_left=not properties.can_pass_left,
         block_right=not properties.can_pass_right,
         block_up=not properties.can_pass_up,
     )
+
+    identifier_suffix = ""
+
+    if tile_id is not None:
+        identifier_suffix = f" tile_id={tile_id}"
+
+    coordinate_suffix = ""
+
+    if coord is not None:
+        coordinate_suffix = f" coord=({coord[0]}, {coord[1]})"
+
+    logger.debug(
+        "properties -> collision%s%s: %s -> %s",
+        identifier_suffix,
+        coordinate_suffix,
+        properties,
+        result,
+    )
+
+    return result

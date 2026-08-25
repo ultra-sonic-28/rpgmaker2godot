@@ -190,11 +190,13 @@ def test_serializes_collision_polygon_points() -> None:
                 column=0,
                 row=0,
                 collision=GodotTileCollision(
-                    points=(
-                        (0.0, 0.0),
-                        (48.0, 0.0),
-                        (48.0, 48.0),
-                        (0.0, 48.0),
+                    polygons=(
+                        (
+                            (0.0, 0.0),
+                            (48.0, 0.0),
+                            (48.0, 48.0),
+                            (0.0, 48.0),
+                        ),
                     ),
                 ),
             ),
@@ -209,6 +211,46 @@ def test_serializes_collision_polygon_points() -> None:
     ) in content
 
 
+def test_serializes_one_wall_band_per_blocked_side() -> None:
+    """Left AND right blocked sides give two separate vertical walls."""
+
+    resource = make_godot_tileset_resource(
+        tiles=(
+            GodotAtlasTileResource(
+                column=0,
+                row=0,
+                collision=GodotTileCollision(
+                    polygons=(
+                        (
+                            (-24.0, -24.0),
+                            (-16.0, -24.0),
+                            (-16.0, 24.0),
+                            (-24.0, 24.0),
+                        ),
+                        (
+                            (16.0, -24.0),
+                            (24.0, -24.0),
+                            (24.0, 24.0),
+                            (16.0, 24.0),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    content = GodotResourceSerializer().serialize(resource)
+
+    assert (
+        "0:0/0/physics_layer_0/polygon_0/points = "
+        "PackedVector2Array(-24, -24, -16, -24, -16, 24, -24, 24)"
+    ) in content
+    assert (
+        "0:0/0/physics_layer_0/polygon_1/points = "
+        "PackedVector2Array(16, -24, 24, -24, 24, 24, 16, 24)"
+    ) in content
+
+
 def test_serializes_fractional_negative_coordinates() -> None:
     resource = make_godot_tileset_resource(
         tiles=(
@@ -216,11 +258,13 @@ def test_serializes_fractional_negative_coordinates() -> None:
                 column=1,
                 row=2,
                 collision=GodotTileCollision(
-                    points=(
-                        (-23.5, -49.0),
-                        (25.25, -49.0),
-                        (25.25, 49.0),
-                        (-23.5, 49.0),
+                    polygons=(
+                        (
+                            (-23.5, -49.0),
+                            (25.25, -49.0),
+                            (25.25, 49.0),
+                            (-23.5, 49.0),
+                        ),
                     ),
                 ),
             ),
@@ -253,11 +297,13 @@ def test_orders_cell_lines_like_godot() -> None:
                 width=2,
                 height=1,
                 collision=GodotTileCollision(
-                    points=(
-                        (0.0, 0.0),
-                        (96.0, 0.0),
-                        (96.0, 48.0),
-                        (0.0, 48.0),
+                    polygons=(
+                        (
+                            (0.0, 0.0),
+                            (96.0, 0.0),
+                            (96.0, 48.0),
+                            (0.0, 48.0),
+                        ),
                     ),
                 ),
             ),
@@ -282,11 +328,13 @@ def test_serializes_one_polygon_per_colliding_tile() -> None:
                 column=0,
                 row=0,
                 collision=GodotTileCollision(
-                    points=(
-                        (0.0, 0.0),
-                        (48.0, 0.0),
-                        (48.0, 24.0),
-                        (0.0, 24.0),
+                    polygons=(
+                        (
+                            (0.0, 0.0),
+                            (48.0, 0.0),
+                            (48.0, 24.0),
+                            (0.0, 24.0),
+                        ),
                     ),
                 ),
             ),
@@ -298,10 +346,12 @@ def test_serializes_one_polygon_per_colliding_tile() -> None:
                 column=0,
                 row=1,
                 collision=GodotTileCollision(
-                    points=(
-                        (0.0, 0.0),
-                        (48.0, 0.0),
-                        (48.0, 48.0),
+                    polygons=(
+                        (
+                            (0.0, 0.0),
+                            (48.0, 0.0),
+                            (48.0, 48.0),
+                        ),
                     ),
                 ),
             ),

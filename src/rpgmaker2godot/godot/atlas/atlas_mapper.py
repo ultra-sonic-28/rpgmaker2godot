@@ -40,6 +40,13 @@ class GodotAtlasMapper:
                     placement.collision,
                     width=placement.width,
                     height=placement.height,
+                    # Diagnostic coordinates of the tile inside the
+                    # resulting Godot tileset. The authoritative cell
+                    # assignment still happens in GodotTileSetBuilder.
+                    cell=(
+                        placement.atlas_x // atlas.tile_width,
+                        placement.atlas_y // atlas.tile_height,
+                    ),
                 ),
             )
             for placement in atlas.placements

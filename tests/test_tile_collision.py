@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 
 from rpgmaker2godot.model.tile_collision import TileCollision
@@ -206,3 +208,60 @@ def test_non_directional_properties_do_not_affect_collision(
         block_right=False,
         block_up=False,
     )
+
+
+def test_logs_tile_id_and_coordinates_when_provided(caplog) -> None:
+    collision_logger = "rpgmaker2godot.tileset.collision"
+
+    properties = TileProperties(
+        can_pass_down=False,
+        can_pass_left=False,
+        can_pass_right=False,
+        can_pass_up=False,
+        is_star=False,
+        is_ladder=False,
+        is_bush=False,
+        is_counter=False,
+        is_damage_floor=False,
+        terrain_tag=0,
+    )
+
+    with caplog.at_level(logging.DEBUG, logger=collision_logger):
+        tile_properties_to_collision(
+            properties,
+            tile_id=275,
+            coord=(3, 11),
+        )
+
+    messages = [record.getMessage() for record in caplog.records]
+
+    assert any(
+        "tile_id=275 coord=(3, 11)" in message
+        for message in messages
+    )
+
+
+def test_omits_identifiers_when_not_provided(caplog) -> None:
+    collision_logger = "rpgmaker2godot.tileset.collision"
+
+    properties = TileProperties(
+        can_pass_down=False,
+        can_pass_left=True,
+        can_pass_right=True,
+        can_pass_up=False,
+        is_star=False,
+        is_ladder=False,
+        is_bush=False,
+        is_counter=False,
+        is_damage_floor=False,
+        terrain_tag=0,
+    )
+
+    with caplog.at_level(logging.DEBUG, logger=collision_logger):
+        tile_properties_to_collision(properties)
+
+    messages = [record.getMessage() for record in caplog.records]
+
+    assert any("properties -> collision: " in message for message in messages)
+    assert not any("tile_id=" in message for message in messages)
+    assert not any("coord=" in message for message in messages)

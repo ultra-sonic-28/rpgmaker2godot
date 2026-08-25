@@ -53,6 +53,22 @@ src/rpgmaker2godot/
     └── collision/                  # tile_collision.py (has_collision — garde la frontière sémantique/géométrie)
 ```
 
+### Logging
+
+Le pipeline est silencieux par défaut. Déposez un fichier `logging.json` dans le répertoire d'exécution pour activer les logs de débogage (drapeaux bruts, propriétés décodées et polygones générés, tuile par tuile). Les enregistrements sont écrits **uniquement dans le fichier configuré** — jamais dans la console :
+
+```json
+{
+  "enabled": true,
+  "level": "DEBUG",
+  "file": "rpgmaker2godot.log"
+}
+```
+
+* `enabled` : interrupteur principal ;
+* `level` : sévérité minimale (`DEBUG`, `INFO`, `WARNING`, `ERROR`) ;
+* `file` : **requis** — destination unique des enregistrements ; sans ce champ, les logs restent désactivés.
+
 ### Pipeline de conversion
 Pipeline de conversion RPG Maker → Godot
 

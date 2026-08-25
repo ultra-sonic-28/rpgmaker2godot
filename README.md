@@ -82,6 +82,8 @@ powershell -ExecutionPolicy Bypass -File scripts\build_exe.ps1
 
 La recette de build est décrite par le fichier versionné `rpgmaker2godot.spec` (onefile, console, métadonnées du paquet embarquées pour la bannière).
 
+Chaque génération **incrémente automatiquement l'entrée numérique `build`** de la section `[project]` de `pyproject.toml` ; ce numéro est affiché par la bannière juste après la version : `rpgmaker2godot v0.1.0 build 35`.
+
 * premier démarrage plus lent : l'exécutable s'extrait dans `%TEMP%` ;
 * binaire non signé : SmartScreen ou l'antivirus peuvent afficher un avertissement à l'exécution.
 

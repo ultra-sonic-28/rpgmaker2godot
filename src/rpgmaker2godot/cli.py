@@ -189,10 +189,14 @@ def main(argv: list[str] | None = None) -> int:
                 for sheet in tileset.sheets
             )
 
+            sheet_count = len(tileset.sheets)
+            tile_word = "tile" if tile_count == 1 else "tiles"
+            sheet_word = "sheet" if sheet_count == 1 else "sheets"
+
             print(
                 f"  {tileset.name}: "
-                f"{tile_count} tiles "
-                f"from {len(tileset.sheets)} sheets"
+                f"{tile_count} {tile_word} from "
+                f"{sheet_count} {sheet_word}"
             )
 
         _print_step(4, "Exporting Godot resources")

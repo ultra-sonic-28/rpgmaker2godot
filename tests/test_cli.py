@@ -243,6 +243,9 @@ def test_simple_cli_paints_output_when_colors_forced(
 
     captured = capsys.readouterr()
 
+    # Singular forms are used for a single tileset sheet.
+    assert "Inside: 4 tiles from 1 sheet" in captured.out
+
     # White on blue step headings.
     assert "\x1b[97;44m[1/4] Analyzing input directory" in captured.out
     # White on green Generated heading.

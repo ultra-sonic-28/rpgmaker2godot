@@ -43,6 +43,7 @@ src/rpgmaker2godot/
 │   ├── builder.py, models.py, writer.py
 ├── image/                          # Extraction d'images (PIL/Pillow)
 │   ├── extractor.py, source.py
+├── utils/                          # Messages console (banner rich)
 └── godot/                          # Génération des ressources Godot
     ├── model.py                    # Modèles Godot (GodotTileSet, etc.)
     ├── atlas/                      # atlas_builder.py, atlas_mapper.py

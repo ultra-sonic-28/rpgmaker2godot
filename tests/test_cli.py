@@ -353,3 +353,81 @@ def test_simple_cli_without_tilesets_json_stays_collision_free(
     )
 
     assert "/physics_layer_0/polygon" not in content
+
+
+def flatten(text: str) -> str:
+    """Collapse whitespace runs — panels wrap long lines."""
+    return " ".join(text.split())
+
+
+def test_missing_arguments_show_banner_then_usage_panel(
+    capsys,
+) -> None:
+    exit_code = main([])
+
+    captured = capsys.readouterr()
+    output = flatten(captured.out)
+
+    assert exit_code == 2
+
+    # The startup banner is displayed first, like any regular run.
+    assert "rpgmaker2godot v0.1.0" in output
+    assert (
+        "Convert RPG Maker MV/MZ tilesets to Godot resources."
+        in output
+    )
+
+    # The usage failure follows, rendered inside a warning frame.
+    assert (
+        "usage: rpgmaker2godot [-h] [--simple] input output"
+        in output
+    )
+    assert (
+        "rpgmaker2godot: error: the following arguments are "
+        "required: input, output" in output
+    )
+    assert "┌" in captured.out
+    assert "└" in captured.out
+
+
+def test_unrecognized_arguments_report_usage(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    # Valid positionals plus an unknown option: argparse only
+    # reports unrecognized arguments once required ones are filled.
+    exit_code = main(
+        [
+            str(tmp_path),
+            str(tmp_path / "output"),
+            "--bogus",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert (
+        "rpgmaker2godot: error: unrecognized arguments: --bogus"
+        in flatten(captured.out)
+    )
+
+
+def test_missing_simple_flag_reports_usage(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    exit_code = main(
+        [
+            str(tmp_path),
+            str(tmp_path / "output"),
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert (
+        "rpgmaker2godot: error: Only --simple mode is currently "
+        "supported." in flatten(captured.out)
+    )

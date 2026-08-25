@@ -14,6 +14,7 @@ from .tileset.reader import TilesetsJsonReader
 from .tileset.resolver import TilePropertiesResolver
 from .utils.log import configure_logging
 from .utils.messages import display_program_banner
+from .utils.messages import display_warning
 
 TOTAL_STEPS = 4
 
@@ -23,6 +24,35 @@ _STEP_STYLE = "97;44"           # white on blue
 _WARNING_STYLE = "97;48;5;208"  # white on orange (256-color)
 _ERROR_STYLE = "97;41"          # white on red
 _SUCCESS_STYLE = "97;42"        # white on green
+
+
+class _UsageError(Exception):
+    """Argument parsing failure carrying its formatted usage text."""
+
+    def __init__(
+        self,
+        usage: str,
+        message: str,
+    ) -> None:
+        super().__init__(message)
+
+        self.usage = usage
+        self.message = message
+
+
+class _Parser(argparse.ArgumentParser):
+    """Argument parser raising catchable errors instead of exiting.
+
+    argparse terminates the process straight from ``error()``;
+    raising instead lets ``main`` render failures through the
+    standard warning UI while keeping the process exit code (2).
+    """
+
+    def error(
+        self,
+        message: str,
+    ) -> None:
+        raise _UsageError(self.format_usage(), message)
 
 
 def _supports_colors(
@@ -76,8 +106,19 @@ def _print_step(
     )
 
 
+def _format_usage_error(
+    parser: argparse.ArgumentParser,
+    message: str,
+) -> str:
+    """Render a parsing failure the way argparse would print it."""
+
+    usage = parser.format_usage().rstrip("\n")
+
+    return f"{usage}\n{parser.prog}: error: {message}"
+
+
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
+    parser = _Parser(
         prog="rpgmaker2godot",
         description="Convert RPG Maker MV/MZ tilesets to Godot resources.",
     )
@@ -100,8 +141,6 @@ def main(argv: list[str] | None = None) -> int:
         help="Use the simple conversion mode (A5/B/C/D/E).",
     )
 
-    args = parser.parse_args(argv)
-
     # Enable ANSI escape sequences on the legacy Windows console.
     os.system("")
 
@@ -111,8 +150,24 @@ def main(argv: list[str] | None = None) -> int:
 
     display_program_banner()
 
+    try:
+        args = parser.parse_args(argv)
+    except _UsageError as error:
+        display_warning(
+            _format_usage_error(parser, error.message),
+        )
+
+        return 2
+
     if not args.simple:
-        parser.error("Only --simple mode is currently supported.")
+        display_warning(
+            _format_usage_error(
+                parser,
+                "Only --simple mode is currently supported.",
+            ),
+        )
+
+        return 2
 
     try:
         detector = TilesetDetector()

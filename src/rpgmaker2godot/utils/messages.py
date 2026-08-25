@@ -37,6 +37,29 @@ def display_title(
     console.print("")
 
 
+def display_warning(
+    message: str,
+) -> None:
+    """Display a message inside a warning-colored panel.
+
+    Bright white text on an orange background with a matching
+    border — the same highlight color the CLI uses for warnings.
+    """
+
+    console = Console()
+
+    title = Panel(
+        message,
+        style="bright_white on #ff8700",
+        border_style="#ff8700",
+        expand=True,
+    )
+
+    console.print("")
+    console.print(title)
+    console.print("")
+
+
 def display_program_banner() -> None:
     """Display the program name, version and description as a banner.
 

@@ -9,7 +9,7 @@ version = "0.1.0"
 # Numeric counter incremented by scripts/build_exe.ps1 on every
 # generated executable; displayed in the CLI banner after the
 # version (e.g. "rpgmaker2godot v0.1.0 build 12").
-build = 3
+build = 4
 description = "Convert RPG Maker MV/MZ tilesets to Godot resources."
 readme = "README.md"
 requires-python = ">=3.13"

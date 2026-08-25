@@ -3,6 +3,7 @@ import pytest
 from rpgmaker2godot.utils.messages import (
     display_program_banner,
     display_title,
+    display_warning,
 )
 
 
@@ -63,3 +64,17 @@ def test_banner_appends_build_number_after_version(
     captured = capsys.readouterr()
 
     assert "rpgmaker2godot v0.1.0 build 35" in captured.out
+
+
+def test_display_warning_renders_message_inside_a_panel(
+    capsys,
+) -> None:
+    display_warning("the following arguments are required")
+
+    captured = capsys.readouterr()
+
+    assert "the following arguments are required" in captured.out
+
+    # Panel border characters are present.
+    assert "┌" in captured.out
+    assert "└" in captured.out

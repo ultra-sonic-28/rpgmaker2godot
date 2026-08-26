@@ -8,8 +8,9 @@
 #
 # Every run increments the numeric `build` entry of the
 # [tool.rpgmaker2godot] table in pyproject.toml, stamps it into
-# src/rpgmaker2godot/build_info.py (read by the CLI banner), then
-# rebuilds dist\rpgmaker2godot.exe.
+# src/rpgmaker2godot/build_info.py (read by the CLI banner), rebuilds
+# dist\rpgmaker2godot.exe, then packages the release archive
+# (zip + SHA256 checksum) into dist\.
 
 $ErrorActionPreference = "Stop"
 
@@ -89,8 +90,54 @@ BUILD_NUMBER = NUMBER_PLACEHOLDER
         throw "PyInstaller failed with exit code $LASTEXITCODE"
     }
 
+    # ------------------------------------------------------------
+    # Package the release archive (zip + SHA256) in dist\.
+    # ------------------------------------------------------------
+    # The `version` is read back from the (already updated)
+    # pyproject.toml content; `$number` is the freshly incremented
+    # build counter. The archive is named after the version and
+    # build so it can be attached to a GitHub release as-is.
+    $versionMatch = [regex]::Match(
+        $content,
+        '(?m)^[ ]*version[ ]*=[ ]*"([^"]+)"[ ]*$'
+    )
+
+    if (-not $versionMatch.Success) {
+        throw "Cannot locate the 'version' entry in pyproject.toml."
+    }
+
+    $version = $versionMatch.Groups[1].Value
+    $distDir = Join-Path $root "dist"
+    $releaseBaseName = "RpgMaker2Godot-win-x64-v${version}${number}"
+    $zipPath = Join-Path $distDir "$releaseBaseName.zip"
+    $shaPath = "$zipPath.sha256"
+
+    # Stage the archive contents: the Windows executable plus any
+    # future assets (sample tilesets, docs, ...). Add them here.
+    $stagingDir = Join-Path $env:TEMP "rpgmaker2godot-release-$releaseBaseName"
+    if (Test-Path $stagingDir) {
+        Remove-Item $stagingDir -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $stagingDir | Out-Null
+
+    Copy-Item (Join-Path $distDir "rpgmaker2godot.exe") (Join-Path $stagingDir "rpgmaker2godot.exe")
+
+    # Drop a fresh archive/sum for this version+build, then zip.
+    Remove-Item $zipPath -ErrorAction SilentlyContinue
+    Remove-Item $shaPath -ErrorAction SilentlyContinue
+
+    Compress-Archive -Path "$stagingDir\*" -DestinationPath $zipPath
+
+    # SHA256 in <hash>  <filename> format (uppercase, standard Git).
+    $sha256 = (Get-FileHash -Algorithm SHA256 -Path $zipPath).Hash
+    "$sha256  $releaseBaseName.zip" | Set-Content -Path $shaPath -Encoding ascii
+
+    Remove-Item $stagingDir -Recurse -Force
+
     Write-Host ""
     Write-Host "Built: $(Join-Path $root 'dist\rpgmaker2godot.exe') (build $number)"
+    Write-Host "Release: $releaseBaseName.zip"
+    Write-Host "SHA256:  $sha256  ($releaseBaseName.zip.sha256)"
 }
 finally {
     Pop-Location

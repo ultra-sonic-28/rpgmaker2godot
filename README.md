@@ -22,6 +22,33 @@ Run:
 rpgmaker2godot
 ```
 
+### Linting and type checking
+
+Install the development extras (`ruff` + `mypy`):
+
+```bash
+python -m pip install -e ".[dev]"
+```
+
+Lint with ruff (checks the whole repository, using the rules configured in `[tool.ruff]`):
+
+```bash
+python -m ruff check
+```
+
+Apply ruff's automatic fixes (`--fix`, `--unsafe-fixes` for the broader ones) before committing:
+
+```bash
+python -m ruff check --fix
+python -m ruff check --fix --unsafe-fixes
+```
+
+Type-check with mypy (targets `src/rpgmaker2godot`, as configured in `[tool.mypy]`):
+
+```bash
+python -m mypy
+```
+
 ### Architecture
 ```text
 src/rpgmaker2godot/

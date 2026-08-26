@@ -86,6 +86,8 @@ Every generation **automatically increments the numeric `build` entry** of the `
 
 The executable embeds the application icon (`assets/icon/rpgmaker2godot.ico`, also shipped as standalone PNGs from 512 down to 16 px). To tweak the artwork, edit `scripts/generate_icon.py`, regenerate with `python scripts/generate_icon.py`, then rebuild.
 
+It also carries Windows version metadata (description, file & product version including the build number, product name, French language, copyright, original filename), defined once in `rpgmaker2godot.spec` from the `pyproject.toml` values.
+
 * slower first startup: the executable extracts itself into `%TEMP%`;
 * unsigned binary: SmartScreen or your antivirus may show a warning when running it.
 

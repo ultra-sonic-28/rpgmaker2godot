@@ -1,4 +1,5 @@
 import json
+import logging
 from pathlib import Path
 
 from PIL import Image
@@ -431,3 +432,99 @@ def test_missing_simple_flag_reports_usage(
         "rpgmaker2godot: error: Only --simple mode is currently "
         "supported." in flatten(captured.out)
     )
+
+
+def project_log_file() -> Path:
+    """Path of the developer-facing log at the repository root."""
+
+    return Path(__file__).resolve().parents[1] / "rpgmaker2godot.log"
+
+
+def test_error_runs_never_record_into_any_log_file(capsys) -> None:
+    """An argument failure must not produce a single log record."""
+
+    project_log = project_log_file()
+    before = project_log.read_bytes() if project_log.exists() else None
+
+    # An aggressive configuration sits in the current (sandboxed) working
+    # directory: even so, the failure path must not write anything.
+    working_directory = Path.cwd()
+    (working_directory / "logging.json").write_text(
+        json.dumps(
+            {
+                "enabled": True,
+                "level": "DEBUG",
+                "file": str(working_directory / "probe.log"),
+                "mode": "APPEND",
+            },
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = main([])
+    capsys.readouterr()
+
+    assert exit_code == 2
+
+    probe = working_directory / "probe.log"
+
+    assert not probe.exists() or probe.stat().st_size == 0
+
+    if before is not None:
+        assert project_log.read_bytes() == before
+
+
+def test_conversion_records_stay_inside_the_test_sandbox(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    """Debug records go to the sandbox only, never to the project log."""
+
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    create_sheet(
+        input_directory,
+        "Inside_B.png",
+        color=(0, 255, 0, 255),
+    )
+
+    # With a Tilesets.json present the resolver fires and produces the
+    # per-tile debug records the probe must capture.
+    create_tilesets_json(input_directory)
+
+    project_log = project_log_file()
+    before = project_log.read_bytes() if project_log.exists() else None
+
+    working_directory = Path.cwd()
+    (working_directory / "logging.json").write_text(
+        json.dumps(
+            {
+                "enabled": True,
+                "level": "DEBUG",
+                "file": str(working_directory / "probe.log"),
+                "mode": "OVERWRITE",
+            },
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "--simple",
+            str(input_directory),
+            str(output_directory),
+        ]
+    )
+    capsys.readouterr()
+
+    assert exit_code == 0
+
+    # Records were produced… inside the sandbox probe exclusively.
+    probe = working_directory / "probe.log"
+    assert probe.exists()
+    assert "resolve Inside" in probe.read_text(encoding="utf-8")
+
+    # …and the project log at the repository root stayed untouched.
+    if before is not None:
+        assert project_log.read_bytes() == before

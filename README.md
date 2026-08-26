@@ -71,6 +71,8 @@ The pipeline is silent by default. Drop a `logging.json` file into the working d
 * `file`: **required** — the sole destination of the records; without this field, logging stays disabled;
 * `mode`: `APPEND` (default) appends records at the end of the existing file, `OVERWRITE` recreates the file on every run — any missing or unknown value falls back to `APPEND`.
 
+> Running the test-suite never writes to this file: every test executes in an isolated working directory, so an ambient `logging.json` left next to the sources is invisible to the application under test.
+
 ### Windows executable
 
 A standalone binary is generated in `dist\rpgmaker2godot.exe` (all dependencies — Pillow, rich — are bundled, no Python interpreter required on the target machine):

@@ -38,14 +38,16 @@ class SimpleConverter:
 
         if self._no_merge:
             for sheet_info in analysis.sheets:
-                name = sheet_info.path.stem
-
+                # Output tileset named after the source sheet (one PNG +
+                # .tres per input sheet). The TileRef keeps the RPG name
+                # (the prefix) so collision lookup against Tilesets.json
+                # still resolves to the same tileset as in merge mode.
                 tilesets.append(
                     Tileset(
-                        name=name,
+                        name=sheet_info.path.stem,
                         sheets=(
                             self._convert_sheet(
-                                name,
+                                sheet_info.prefix,
                                 sheet_info,
                             ),
                         ),

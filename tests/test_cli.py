@@ -156,6 +156,68 @@ def test_simple_cli_no_merge_exports_one_file_per_sheet(
             assert image.size == (96, 96)
 
 
+def test_simple_cli_no_merge_resolves_collision_from_tilesets_json(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    # Regression: --no-merge names the output tileset after the sheet
+    # (Inside_A5) but collision lookup must still resolve the RPG tileset
+    # by its prefix (Inside). Otherwise conversion aborts with
+    # "Unknown RPG Maker tileset: 'Inside_A5'".
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    create_sheet(
+        input_directory,
+        "Inside_A5.png",
+        color=(255, 0, 0, 255),
+    )
+
+    create_sheet(
+        input_directory,
+        "Inside_B.png",
+        color=(0, 255, 0, 255),
+    )
+
+    # Flags array long enough to cover A5 global tile IDs (base 1536)
+    # so the resolver never trips the out-of-range guard.
+    data = [
+        None,
+        {
+            "id": 1,
+            "name": "Inside",
+            "flags": [0x0000] * 2048,
+        },
+    ]
+
+    (input_directory / "Tilesets.json").write_text(
+        json.dumps(data),
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "--simple",
+            "--no-merge",
+            str(input_directory),
+            str(output_directory),
+        ]
+    )
+
+    assert exit_code == 0
+
+    captured = capsys.readouterr()
+
+    assert "Inside_A5.png" in captured.out
+    assert "Inside_B.png" in captured.out
+    assert "Unknown RPG Maker tileset" not in captured.out
+    assert "Unknown RPG Maker tileset" not in captured.err
+
+    # Collision was resolved (the resolver ran) without aborting.
+    assert (output_directory / "Inside_A5.tres").exists()
+    assert (output_directory / "Inside_B.tres").exists()
+
+
 def test_simple_cli_exports_multiple_tilesets(
     tmp_path: Path,
 ) -> None:

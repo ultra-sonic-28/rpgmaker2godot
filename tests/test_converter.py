@@ -250,26 +250,37 @@ def test_no_merge_single_sheet_matches_default() -> None:
     assert len(merged.tilesets) == 1
     assert len(split.tilesets) == 1
 
-    # With a single sheet both modes produce one tileset; the only
-    # difference is that the tileset is named after the source sheet
-    # instead of the prefix.
+    # With a single sheet both modes produce the same tiles; the only
+    # difference is that the output tileset is named after the source
+    # sheet instead of the prefix.
     assert split.tilesets[0].name == "Inside_B"
+    assert split.tilesets[0].sheets == merged.tilesets[0].sheets
 
-    merged_sheet = merged.tilesets[0].sheets[0]
-    split_sheet = split.tilesets[0].sheets[0]
 
-    assert len(split_sheet.tiles) == len(merged_sheet.tiles)
-    assert split_sheet.columns == merged_sheet.columns
-    assert split_sheet.rows == merged_sheet.rows
-    assert split_sheet.source_path == merged_sheet.source_path
+def test_no_merge_keeps_ref_tileset_equal_to_prefix() -> None:
+    """--no-merge must not change the RPG tileset name used for lookup.
 
-    # Each entry has the same index and sheet type; only the owning
-    # tileset name in the reference differs.
-    assert [
-        tile.ref.index for tile in split_sheet.tiles
-    ] == [
-        tile.ref.index for tile in merged_sheet.tiles
+    TileRef.tileset stays the prefix so that collision resolution
+    against Tilesets.json (which names tilesets by prefix) keeps
+    working in no-merge mode.
+    """
+    analysis = make_analysis(
+        make_sheet("Inside", SheetType.B, 768, 768),
+        make_sheet("Inside", SheetType.C, 768, 768),
+    )
+
+    result = SimpleConverter(no_merge=True).convert(analysis)
+
+    assert [tileset.name for tileset in result.tilesets] == [
+        "Inside_B",
+        "Inside_C",
     ]
+
+    # Each tile still belongs to the RPG tileset named after the prefix,
+    # exactly as it would in merge mode.
+    for tileset in result.tilesets:
+        for tile in tileset.sheets[0].tiles:
+            assert tile.ref.tileset == "Inside"
 
 
 def test_preserves_source_path() -> None:

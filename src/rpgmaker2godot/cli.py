@@ -141,6 +141,16 @@ def main(argv: list[str] | None = None) -> int:
         help="Use the simple conversion mode (A5/B/C/D/E).",
     )
 
+    parser.add_argument(
+        "--no-merge",
+        action="store_true",
+        help=(
+            "Keep the source sheet split: export one PNG atlas and one "
+            ".tres per input sheet instead of merging them into a single "
+            "output (default: merge sheets sharing a prefix)."
+        ),
+    )
+
     # Enable ANSI escape sequences on the legacy Windows console.
     os.system("")
 
@@ -226,6 +236,7 @@ def main(argv: list[str] | None = None) -> int:
                         }
                     )
                 ),
+                no_merge=args.no_merge,
             )
 
             print(
@@ -237,7 +248,9 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
 
-            converter = SimpleConverter()
+            converter = SimpleConverter(
+                no_merge=args.no_merge,
+            )
 
         _print_step(3, "Converting tiles")
 

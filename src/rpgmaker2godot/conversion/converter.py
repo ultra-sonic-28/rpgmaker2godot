@@ -23,37 +23,58 @@ class SimpleConverter:
         self,
         *,
         tile_properties_resolver: TilePropertiesResolver | None = None,
+        no_merge: bool = False,
     ) -> None:
         self._tile_properties_resolver = (
             tile_properties_resolver
         )
-        
+
+        # When enabled, keep the source sheet split: one converted
+        # Tileset per input sheet instead of grouping them by prefix.
+        self._no_merge = no_merge
+
     def convert(self, analysis: AnalysisResult) -> ConversionResult:
-        grouped_sheets: dict[str, list[SheetInfo]] = defaultdict(list)
-
-        for sheet_info in analysis.sheets:
-            grouped_sheets[sheet_info.prefix].append(sheet_info)
-
         tilesets: list[Tileset] = []
 
-        for name, sheet_infos in sorted(grouped_sheets.items()):
-            sheets = tuple(
-                self._convert_sheet(
-                    name,
-                    sheet_info,
-                )
-                for sheet_info in sorted(
-                    sheet_infos,
-                    key=lambda info: info.sheet_type.order,
-                )
-            )
+        if self._no_merge:
+            for sheet_info in analysis.sheets:
+                name = sheet_info.path.stem
 
-            tilesets.append(
-                Tileset(
-                    name=name,
-                    sheets=sheets,
+                tilesets.append(
+                    Tileset(
+                        name=name,
+                        sheets=(
+                            self._convert_sheet(
+                                name,
+                                sheet_info,
+                            ),
+                        ),
+                    )
                 )
-            )
+        else:
+            grouped_sheets: dict[str, list[SheetInfo]] = defaultdict(list)
+
+            for sheet_info in analysis.sheets:
+                grouped_sheets[sheet_info.prefix].append(sheet_info)
+
+            for name, sheet_infos in sorted(grouped_sheets.items()):
+                sheets = tuple(
+                    self._convert_sheet(
+                        name,
+                        sheet_info,
+                    )
+                    for sheet_info in sorted(
+                        sheet_infos,
+                        key=lambda info: info.sheet_type.order,
+                    )
+                )
+
+                tilesets.append(
+                    Tileset(
+                        name=name,
+                        sheets=sheets,
+                    )
+                )
 
         return ConversionResult(
             tilesets=tuple(tilesets),

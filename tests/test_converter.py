@@ -217,6 +217,61 @@ def test_converts_sheet_without_prefix() -> None:
     assert result.tilesets[0].name == ""
 
 
+def test_no_merge_keeps_each_sheet_as_its_own_tileset() -> None:
+    analysis = make_analysis(
+        make_sheet("Inside", SheetType.A5, 384, 768),
+        make_sheet("Inside", SheetType.B, 768, 768),
+        make_sheet("Inside", SheetType.C, 768, 768),
+    )
+
+    result = SimpleConverter(no_merge=True).convert(analysis)
+
+    # The three sheets share a prefix but stay separate.
+    assert len(result.tilesets) == 3
+
+    assert [tileset.name for tileset in result.tilesets] == [
+        "Inside_A5",
+        "Inside_B",
+        "Inside_C",
+    ]
+
+    for tileset in result.tilesets:
+        assert len(tileset.sheets) == 1
+
+
+def test_no_merge_single_sheet_matches_default() -> None:
+    analysis = make_analysis(
+        make_sheet("Inside", SheetType.B, 768, 768),
+    )
+
+    merged = SimpleConverter().convert(analysis)
+    split = SimpleConverter(no_merge=True).convert(analysis)
+
+    assert len(merged.tilesets) == 1
+    assert len(split.tilesets) == 1
+
+    # With a single sheet both modes produce one tileset; the only
+    # difference is that the tileset is named after the source sheet
+    # instead of the prefix.
+    assert split.tilesets[0].name == "Inside_B"
+
+    merged_sheet = merged.tilesets[0].sheets[0]
+    split_sheet = split.tilesets[0].sheets[0]
+
+    assert len(split_sheet.tiles) == len(merged_sheet.tiles)
+    assert split_sheet.columns == merged_sheet.columns
+    assert split_sheet.rows == merged_sheet.rows
+    assert split_sheet.source_path == merged_sheet.source_path
+
+    # Each entry has the same index and sheet type; only the owning
+    # tileset name in the reference differs.
+    assert [
+        tile.ref.index for tile in split_sheet.tiles
+    ] == [
+        tile.ref.index for tile in merged_sheet.tiles
+    ]
+
+
 def test_preserves_source_path() -> None:
     source = Path("tilesets/Inside_B.png")
 

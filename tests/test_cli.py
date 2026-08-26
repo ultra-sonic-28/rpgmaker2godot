@@ -113,6 +113,49 @@ def test_simple_cli_exports_tileset(
     assert "Inside.tres  2x6 tiles" in captured.out
 
 
+def test_simple_cli_no_merge_exports_one_file_per_sheet(
+    tmp_path: Path,
+) -> None:
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    for filename, color in (
+        ("Inside_A5.png", (255, 0, 0, 255)),
+        ("Inside_B.png", (0, 255, 0, 255)),
+        ("Inside_C.png", (0, 0, 255, 255)),
+    ):
+        create_sheet(
+            input_directory,
+            filename,
+            color=color,
+        )
+
+    exit_code = main(
+        [
+            "--simple",
+            "--no-merge",
+            str(input_directory),
+            str(output_directory),
+        ]
+    )
+
+    assert exit_code == 0
+
+    # The default behaviour stacks the three sheets in a single
+    # Inside atlas. With --no-merge each sheet stays separate.
+    assert not (output_directory / "Inside.png").exists()
+
+    for stem in ("Inside_A5", "Inside_B", "Inside_C"):
+        atlas_path = output_directory / f"{stem}.png"
+        resource_path = output_directory / f"{stem}.tres"
+
+        assert atlas_path.exists()
+        assert resource_path.exists()
+
+        with Image.open(atlas_path) as image:
+            assert image.size == (96, 96)
+
+
 def test_simple_cli_exports_multiple_tilesets(
     tmp_path: Path,
 ) -> None:
@@ -380,7 +423,7 @@ def test_missing_arguments_show_banner_then_usage_panel(
 
     # The usage failure follows, rendered inside a warning frame.
     assert (
-        "usage: rpgmaker2godot [-h] [--simple] input output"
+        "usage: rpgmaker2godot [-h] [--simple] [--no-merge] input output"
         in output
     )
     assert (

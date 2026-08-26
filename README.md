@@ -201,6 +201,8 @@ sequenceDiagram
 
 `SimpleConverter.convert()` turns the `AnalysisResult` into the internal, immutable `ConversionResult` model. Sheets sharing the same filename prefix are grouped into one `Tileset` and ordered by their canonical stacking order (A5, B, C, D, E).
 
+This prefix grouping is the default **merging** behaviour: every sheet sharing a prefix ends up stacked in a single atlas/`.tres`. Passing `--no-merge` keeps the source sheet split instead — each detected sheet becomes its own `Tileset`, named after the sheet file itself (so `world_B.png` yields a `world_B` tileset), and the export step then emits one `<sheet>.png` + `<sheet>.tres` per input sheet.
+
 For every sheet, one `Tile` is created per cell:
 
 * a `TileRef` (tileset name, sheet type, zero-based column-major index) plus its coordinates;

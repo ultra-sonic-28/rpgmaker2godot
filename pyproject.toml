@@ -9,7 +9,7 @@ version = "0.1.0"
 # Numeric counter incremented by scripts/build_exe.ps1 on every
 # generated executable; displayed in the CLI banner after the
 # version (e.g. "rpgmaker2godot v0.1.0 build 12").
-build = 9
+build = 10
 description = "Convert RPG Maker MV/MZ tilesets to Godot resources."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -24,6 +24,10 @@ dependencies = [
 
 [project.optional-dependencies]
 build = ["pyinstaller>=6.10"]
+dev = [
+    "mypy>=1.14",
+    "ruff>=0.8",
+]
 
 [project.scripts]
 rpgmaker2godot = "rpgmaker2godot.cli:main"
@@ -37,3 +41,12 @@ addopts = "-m 'not integration'"
 markers = [
     "integration: tests requiring external applications such as Godot",
 ]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+
+[tool.mypy]
+python_version = "3.13"
+mypy_path = "src"
+files = ["src/rpgmaker2godot"]

@@ -33,16 +33,18 @@ datas = copy_metadata("rpgmaker2godot")
 # `build` entry BEFORE invoking PyInstaller, hence the freshly stamped value
 # is the one read here.
 # ---------------------------------------------------------------------------
-_project = tomllib.loads(
+# PEP 621 reserves the keys of [project] (setuptools rejects custom
+# ones), so the build counter lives in the project's own tool table.
+_pyproject = tomllib.loads(
     # PyInstaller exposes SPECPATH (the spec file's directory) instead
     # of __file__ when executing the recipe.
     (Path(SPECPATH) / "pyproject.toml").read_text(
         encoding="utf-8",
     ),
-)["project"]
+)
 
-VERSION = _project["version"]
-BUILD_NUMBER = int(_project["build"])
+VERSION = _pyproject["project"]["version"]
+BUILD_NUMBER = int(_pyproject["tool"]["rpgmaker2godot"]["build"])
 
 _file_version_tuple = (
     tuple(int(part) for part in VERSION.split(".")) + (BUILD_NUMBER,)

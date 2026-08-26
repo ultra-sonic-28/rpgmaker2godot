@@ -6,10 +6,6 @@ build-backend = "setuptools.build_meta"
 name = "rpgmaker2godot"
 version = "0.1.0"
 
-# Numeric counter incremented by scripts/build_exe.ps1 on every
-# generated executable; displayed in the CLI banner after the
-# version (e.g. "rpgmaker2godot v0.1.0 build 12").
-build = 10
 description = "Convert RPG Maker MV/MZ tilesets to Godot resources."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -34,6 +30,15 @@ rpgmaker2godot = "rpgmaker2godot.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# Numeric counter incremented by scripts/build_exe.ps1 on every
+# generated executable; displayed in the CLI banner after the
+# version (e.g. "rpgmaker2godot v0.1.0 build 12").
+#
+# Kept in a [tool.*] table on purpose: PEP 621 reserves the keys of
+# [project], and setuptools rejects any custom entry found there.
+[tool.rpgmaker2godot]
+build = 10
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

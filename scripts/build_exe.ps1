@@ -6,8 +6,8 @@
 # Prerequisite: the build extra must be installed first:
 #   pip install -e ".[build]"
 #
-# Every run increments the numeric `build` entry of the [project]
-# section in pyproject.toml, stamps it into
+# Every run increments the numeric `build` entry of the
+# [tool.rpgmaker2godot] table in pyproject.toml, stamps it into
 # src/rpgmaker2godot/build_info.py (read by the CLI banner), then
 # rebuilds dist\rpgmaker2godot.exe.
 
@@ -26,6 +26,11 @@ try {
     $content = [System.IO.File]::ReadAllText($pyprojectPath)
     $newline = if ($content.Contains("`r`n")) { "`r`n" } else { "`n" }
 
+    # The counter lives in the [tool.rpgmaker2godot] table: PEP 621
+    # reserves the keys of [project], and setuptools would reject a
+    # custom entry there. This is the only `build = <number>` line in
+    # the file (the `build` extra in [project.optional-dependencies]
+    # holds a list, so it cannot match).
     $buildMatch = [regex]::Match(
         $content,
         '(?m)^(?<indent>[ ]*)build[ ]*=[ ]*(?<number>\d+)[ ]*$'
@@ -38,25 +43,21 @@ try {
         $content = $content.Insert($buildMatch.Index, $line)
     }
     else {
-        # First generation ever: insert the entry right after the
-        # version line of the [project] section.
-        $versionMatch = [regex]::Match(
-            $content,
-            '(?m)^[ ]*version[ ]*=[ ]*"[^"]*"[ ]*$'
-        )
-
-        if (-not $versionMatch.Success) {
-            throw "Cannot locate the 'version' entry in pyproject.toml."
-        }
-
+        # First generation ever: append the dedicated table at the
+        # end of the file.
         $number = 1
-        $insertion = $versionMatch.Value +
-            $newline +
-            $versionMatch.Groups["indent"].Value +
-            "build = $number"
-
-        $content = $content.Remove($versionMatch.Index, $versionMatch.Length)
-        $content = $content.Insert($versionMatch.Index, $insertion)
+        $section = @'
+# Numeric counter incremented by scripts/build_exe.ps1 on every
+# generated executable; displayed in the CLI banner after the
+# version (e.g. "rpgmaker2godot v0.1.0 build 12").
+#
+# Kept in a [tool.*] table on purpose: PEP 621 reserves the keys of
+# [project], and setuptools rejects any custom entry found there.
+[tool.rpgmaker2godot]
+build = NUMBER_PLACEHOLDER
+'@
+        $section = $section.Replace("NUMBER_PLACEHOLDER", "$number")
+        $content = $content.TrimEnd() + $newline + $newline + $section + $newline
     }
 
     # WriteAllText keeps UTF-8 without BOM, which tomllib requires.

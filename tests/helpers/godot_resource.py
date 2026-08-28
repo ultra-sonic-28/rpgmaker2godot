@@ -1,3 +1,6 @@
+from rpgmaker2godot.godot.model import (
+    GodotAtlasTileResource,
+)
 from rpgmaker2godot.godot.resource.resource import (
     GodotAtlasSourceResource,
     GodotExtResource,
@@ -6,9 +9,7 @@ from rpgmaker2godot.godot.resource.resource import (
 from rpgmaker2godot.godot.resource.resource_serializer import (
     GodotResourceSerializer,
 )
-from rpgmaker2godot.godot.model import (
-    GodotAtlasTileResource, 
-)
+
 
 def make_resource() -> GodotTileSetResource:
     texture = GodotExtResource(

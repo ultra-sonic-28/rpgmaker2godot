@@ -1,5 +1,6 @@
 from rpgmaker2godot.model.tile_collision import TileCollision
 from rpgmaker2godot.tileset.model import TileProperties
+
 from ..utils.log import get_logger
 
 logger = get_logger("tileset.collision")

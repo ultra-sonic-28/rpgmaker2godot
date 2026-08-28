@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
@@ -9,9 +10,6 @@ from .models import (
     RPGMakerVersion,
     SheetInfo,
 )
-
-import re
-
 
 SHEET_PATTERN = re.compile(
     r"^(?P<prefix>.*_)?(?P<sheet>A4|A5|B|C|D|E)\.png$",

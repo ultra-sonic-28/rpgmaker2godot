@@ -2,7 +2,6 @@ from pathlib import Path
 
 from tests.helpers.godot_integration import write_validation_script
 
-
 FULL_TILE_POINTS = (
     0.0, 0.0, 48.0, 0.0, 48.0, 48.0, 0.0, 48.0,
 )

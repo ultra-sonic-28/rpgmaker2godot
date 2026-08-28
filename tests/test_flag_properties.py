@@ -3,6 +3,7 @@ import pytest
 from rpgmaker2godot.tileset.flags import decode_tile_flags
 from rpgmaker2godot.tileset.model import TileProperties
 
+
 def test_decode_tile_flags_empty() -> None:
     properties = decode_tile_flags(0x0000)
 

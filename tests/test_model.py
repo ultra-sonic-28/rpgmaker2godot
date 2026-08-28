@@ -1,16 +1,17 @@
 from dataclasses import FrozenInstanceError
 from pathlib import Path
 
+import pytest
+
 from rpgmaker2godot.model import (
     ConversionResult,
     Sheet,
     SheetType,
     Tile,
-    Tileset,
     TileRef,
+    Tileset,
 )
 
-import pytest
 
 def test_tile() -> None:
     tile = Tile(

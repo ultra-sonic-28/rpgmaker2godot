@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from rpgmaker2godot.godot.collision.tile_collision import has_collision
 from rpgmaker2godot.model.tile_collision import TileCollision
+
 from ...utils.log import get_logger
 
 logger = get_logger("godot.tileset.collision")

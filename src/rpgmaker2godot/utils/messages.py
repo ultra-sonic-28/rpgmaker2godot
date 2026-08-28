@@ -1,11 +1,11 @@
 """User-facing console messages for the CLI."""
 
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import metadata
+from importlib.metadata import PackageNotFoundError, metadata
 
-from ..build_info import BUILD_NUMBER
 from rich.console import Console
 from rich.panel import Panel
+
+from ..build_info import BUILD_NUMBER
 
 _PACKAGE_NAME = "rpgmaker2godot"
 

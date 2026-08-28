@@ -1,9 +1,9 @@
 from pathlib import Path
+
 import pytest
 
 from rpgmaker2godot.atlas import AtlasBuilder
 from rpgmaker2godot.model import Sheet, SheetType, Tile, TileRef, Tileset
-
 from tests.helpers.atlas import (
     make_sheet,
     make_tileset,

@@ -2,12 +2,12 @@ from pathlib import Path
 
 from rpgmaker2godot.godot.atlas.atlas_builder import GodotAtlasSourceBuilder
 
+from ..model import GodotTileSet
 from .resource import (
     GodotExtResource,
     GodotTileSetResource,
 )
 from .resource_serializer import GodotResourceSerializer
-from ..model import GodotTileSet
 
 
 class GodotResourceWriter:

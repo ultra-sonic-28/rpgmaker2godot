@@ -1,4 +1,5 @@
 from pathlib import Path
+
 import pytest
 
 from rpgmaker2godot.atlas.builder import AtlasBuilder
@@ -7,15 +8,13 @@ from rpgmaker2godot.godot.tileset.tileset_builder import (
     GodotTileSetBuilder,
 )
 from rpgmaker2godot.model import SheetType
-
-from tests.helpers.godot_atlas import (
-    make_mapping_with_tile, 
-    make_atlas,
-)
-
 from tests.helpers.atlas import (
     make_sheet,
     make_tileset_with_sheets,
+)
+from tests.helpers.godot_atlas import (
+    make_atlas,
+    make_mapping_with_tile,
 )
 
 

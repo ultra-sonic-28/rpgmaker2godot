@@ -2,10 +2,10 @@ from pathlib import Path
 
 from rpgmaker2godot.atlas.models import Atlas
 from rpgmaker2godot.godot.model import (
+    GodotAtlasCell,
     GodotAtlasMapping,
     GodotAtlasSource,
     GodotAtlasTile,
-    GodotAtlasCell,
 )
 from rpgmaker2godot.model import SheetType, TileRef
 from rpgmaker2godot.model.sheet import Sheet

@@ -1,13 +1,12 @@
 from pathlib import Path
 
+from rpgmaker2godot.atlas.builder import AtlasBuilder
 from rpgmaker2godot.godot.atlas.atlas_mapper import GodotAtlasMapper
 from rpgmaker2godot.model import SheetType
-
 from tests.helpers.atlas import (
     make_sheet,
     make_tileset_with_sheets,
 )
-from rpgmaker2godot.atlas.builder import AtlasBuilder
 
 
 def test_maps_tiles_to_atlas_coordinates() -> None:

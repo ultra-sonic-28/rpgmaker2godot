@@ -7,8 +7,8 @@ from rpgmaker2godot.analysis.models import (
     RPGMakerVersion,
     SheetInfo,
 )
-from rpgmaker2godot.model.enums import SheetType
 from rpgmaker2godot.conversion import SimpleConverter
+from rpgmaker2godot.model.enums import SheetType
 from rpgmaker2godot.model.tile import Tile
 from rpgmaker2godot.model.tile_collision import TileCollision
 from rpgmaker2godot.tileset.model import TileProperties

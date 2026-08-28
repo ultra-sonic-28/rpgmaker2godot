@@ -5,7 +5,6 @@ from rpgmaker2godot.godot.resource.resource_serializer import (
     GodotResourceSerializer,
 )
 from rpgmaker2godot.godot.tileset.collision import GodotTileCollision
-
 from tests.helpers.godot_resource import make_resource
 from tests.helpers.godot_tileset import make_godot_tileset_resource
 

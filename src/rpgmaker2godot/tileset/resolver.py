@@ -1,9 +1,9 @@
 from rpgmaker2godot.tileset.flags import decode_tile_flags
+from rpgmaker2godot.tileset.model import TileProperties, TilesetFlags
 from rpgmaker2godot.tileset.tile_id import tile_to_tile_id
 
 from ..model import Tile
 from ..utils.log import get_logger
-from rpgmaker2godot.tileset.model import TileProperties, TilesetFlags
 
 logger = get_logger("tileset.resolver")
 

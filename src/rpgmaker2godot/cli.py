@@ -13,8 +13,7 @@ from .godot.export.simple import SimpleExporter
 from .tileset.reader import TilesetsJsonReader
 from .tileset.resolver import TilePropertiesResolver
 from .utils.log import configure_logging
-from .utils.messages import display_program_banner
-from .utils.messages import display_warning
+from .utils.messages import display_program_banner, display_warning
 
 TOTAL_STEPS = 4
 

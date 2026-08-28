@@ -11,7 +11,6 @@ from rpgmaker2godot.godot.tileset.collision import (
 from rpgmaker2godot.model import SheetType, TileRef
 from rpgmaker2godot.model.tile_collision import TileCollision
 
-
 # Wall bands for a 48x48 tile, expressed around the tile center
 # (Godot convention) with the default wall thickness of 8 px.
 BOTTOM_WALL = (

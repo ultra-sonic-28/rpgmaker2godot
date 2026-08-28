@@ -5,8 +5,8 @@ from rpgmaker2godot.model import (
     Tile,
 )
 from rpgmaker2godot.tileset.model import (
-    TilesetFlags,
     TileProperties,
+    TilesetFlags,
 )
 from rpgmaker2godot.tileset.resolver import (
     TilePropertiesResolver,

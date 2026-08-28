@@ -4,6 +4,7 @@ from pathlib import Path
 
 from rpgmaker2godot.model import SheetType
 
+
 class RPGMakerVersion(Enum):
     UNKNOWN = "unknown"
     MV = "mv"

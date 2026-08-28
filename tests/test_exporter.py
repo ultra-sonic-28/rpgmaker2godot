@@ -9,7 +9,6 @@ from rpgmaker2godot.conversion.converter import SimpleConverter
 from rpgmaker2godot.godot.export.simple import SimpleExporter
 from rpgmaker2godot.model.enums import SheetType
 from rpgmaker2godot.model.tileset import ConversionResult
-
 from tests.helpers.atlas import (
     make_sheet,
     make_tileset_with_sheets,

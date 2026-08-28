@@ -1,7 +1,6 @@
-from rpgmaker2godot.godot.model import GodotAtlasSource
+from rpgmaker2godot.godot.model import GodotAtlasSource, GodotAtlasTileResource
 from rpgmaker2godot.godot.resource.resource import GodotAtlasSourceResource
 
-from rpgmaker2godot.godot.model import GodotAtlasTileResource
 
 class GodotAtlasSourceBuilder:
     """Build a serializable Godot TileSetAtlasSource resource."""

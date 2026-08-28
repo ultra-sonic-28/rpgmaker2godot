@@ -1,9 +1,8 @@
-from dataclasses import replace
 import subprocess
 from pathlib import Path
 
-from PIL import Image
 import pytest
+from PIL import Image
 
 from rpgmaker2godot.analysis.detector import TilesetDetector
 from rpgmaker2godot.conversion.converter import SimpleConverter
@@ -13,9 +12,13 @@ from rpgmaker2godot.model.sheet import Sheet
 from rpgmaker2godot.model.tile import Tile
 from rpgmaker2godot.model.tile_collision import TileCollision
 from rpgmaker2godot.model.tileset import Tileset
-from tests.test_cli import create_sheet
 from tests.helpers.godot_atlas import make_multi_cell_conversion
-from tests.helpers.godot_integration import find_godot, write_project, write_validation_script
+from tests.helpers.godot_integration import (
+    find_godot,
+    write_project,
+    write_validation_script,
+)
+from tests.test_cli import create_sheet
 
 
 @pytest.mark.integration
@@ -509,6 +512,110 @@ def test_generated_tileset_loads_collision_polygons_in_godot(
 
     assert result.returncode == 0, (
         "Godot failed to validate collision polygons.\n\n"
+        f"STDOUT:\n{result.stdout}\n\n"
+        f"STDERR:\n{result.stderr}"
+    )
+
+
+@pytest.mark.integration
+def test_generated_a4_tileset_loads_in_godot(
+    tmp_path: Path,
+) -> None:
+    """The unfolded A4 tileset loads and exposes all 2304 tiles in Godot.
+
+    A single ``*_A4.png`` (768x720) sheet holds 48 autotiles, each
+    unfolded into its 48 connection shapes -> 2304 tiles of 48x48.
+    They are packed 16 per row, giving an atlas of 768x6912 (144 rows).
+    The generated ``.tres`` must load in Godot with every one of those
+    cells present.
+    """
+
+    godot = find_godot()
+
+    if godot is None:
+        pytest.skip(
+            "Godot executable not available. "
+            "Set the GODOT environment variable."
+        )
+
+    input_directory = tmp_path / "tilesets"
+    project_directory = tmp_path / "godot"
+    generated_directory = project_directory / "generated"
+
+    generated_directory.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    create_sheet(
+        input_directory,
+        "Inside_A4.png",
+        size=(768, 720),
+    )
+
+    analysis = TilesetDetector().analyze(
+        input_directory,
+    )
+
+    conversion = SimpleConverter().convert(
+        analysis,
+    )
+
+    SimpleExporter(
+        godot_project_root=project_directory,
+    ).export(
+        conversion,
+        generated_directory,
+    )
+
+    write_project(project_directory)
+
+    generated_png = generated_directory / "Inside.png"
+    assert generated_png.exists()
+    assert generated_png.stat().st_size > 0
+
+    generated_tres = generated_directory / "Inside.tres"
+    assert generated_tres.exists()
+    assert generated_tres.stat().st_size > 0
+
+    script_path = write_validation_script(
+        project_directory,
+        expected_atlas_size=(768, 6912),
+        expected_columns=16,
+        expected_rows=144,
+        validate_all_cells=True,
+    )
+
+    subprocess.run(
+        [
+            godot,
+            "--headless",
+            "--path",
+            str(project_directory),
+            "--editor",
+            "--quit",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    result = subprocess.run(
+        [
+            godot,
+            "--headless",
+            "--path",
+            str(project_directory),
+            "--script",
+            str(script_path.name),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, (
+        "Godot failed to load the generated A4 TileSet.\n\n"
         f"STDOUT:\n{result.stdout}\n\n"
         f"STDERR:\n{result.stderr}"
     )

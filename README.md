@@ -70,7 +70,7 @@ src/rpgmaker2godot/
 │   └── autotile/                   # RPG Maker autotile composition
 │       ├── shapes.py               # FLOOR_AUTOTILE_TABLE (48) + WALL_AUTOTILE_TABLE (16), verbatim
 │       ├── composer.py             # compose 48x48 tiles from 24x24 quarters + unfold
-│       └── a4.py                   # map the 48 A4 autotiles to source regions + unfold
+│       └── a4.py                   # map the 48 A4 autotiles to source regions and shape quarters
 ├── model/                          # Shared internal model (immutable)
 │   ├── enums.py                    # SheetType enum + its canonical stacking order (A4, A5, B, C, D, E)
 │   ├── sheet.py                    # Sheet — one source tilesheet together with its extracted tiles
@@ -142,6 +142,46 @@ It also carries Windows version metadata (description, file & product version in
 * slower first startup: the executable extracts itself into `%TEMP%`;
 * unsigned binary: SmartScreen or your antivirus may show a warning when running it.
 
+### RPG Maker tileset structure
+
+Reference for the sheet format handled by the pipeline, as defined by RPG Maker MV/MZ and its core script (`rmmz_core.js`).
+
+**Objective.** A tileset is not a single image: `Tilesets.json` references up to nine PNG *sheets* (`A1`–`A5`, `B`–`E`) which the engine draws stacked on top of each other (A4 and A5 underneath, then the overlay layers `B` → `C` → `D` → `E`). Everything is laid out on a **48×48 px grid**: one tile is 48×48 px, and autotiles are composed from four **24×24 px quarters**. Sheets come in two families:
+
+* **normal sheets** (`A5`, `B`–`E`) — every cell is an independent, ready-to-draw tile;
+* **autotile sheets** (`A1`–`A4`) — cells are raw material: for every map cell the engine picks a *shape* from hardcoded tables (`FLOOR_AUTOTILE_TABLE` = 48 shapes, `WALL_AUTOTILE_TABLE` = 16, `WATERFALL_AUTOTILE_TABLE` = 4) and assembles the final 48×48 tile from four 24×24 quarters. This tool performs that composition at conversion time (*unfolding*), so Godot only sees plain static tiles.
+
+**Organisation, number and size of tiles:**
+
+| Sheet | Pixels | Content | Engine IDs | Purpose |
+| ----- | ------ | ------- | ---------- | ------- |
+| A1 | 768×576 | 16 autotiles | 768 | animated water and waterfalls |
+| A2 | 768×576 | 32 autotiles | 1536 | ground autotiles (grass, paths…) |
+| A3 | 768×576 | 32 autotiles | 1536 | building autotiles (roofs, walls) |
+| A4 | 768×720 | 48 autotiles → 2304 unfolded tiles | 2304 | interior walls & ceilings (houses, caves, castles, dungeons) |
+| A5 | 384×768 | 128 normal tiles (8×16) | 512 (128 used) | plain ground without autotile |
+| B–E | 768×768 each | 256 normal tiles (16×16) each | 256 each | ordinary tiles, four overlay layers (B lowest → E highest) |
+
+Global tile IDs are fixed by the engine — `B=0, C=256, D=512, E=768, A5=1536, A1=2048, A2=2816, A3=4352, A4=5888`, `TILE_ID_MAX=8192` — which is how the `Tilesets.json` flags array is matched to tiles.
+
+**A4 layout in detail** (fully unfolded by the converter):
+
+```text
+768×720 px = 8 columns of 96 px × 3 bands of 240 px; each band stacks one
+Wall Top row over one Wall Side row:
+
+  y =   0..144    Wall Top  ×8   (96×144, FLOOR_AUTOTILE_TABLE, 48 shapes)
+  y = 144..240    Wall Side ×8   (96×96,  WALL_AUTOTILE_TABLE,  16 shapes)
+  y = 240..384    Wall Top  ×8
+  y = 384..480    Wall Side ×8
+  y = 480..624    Wall Top  ×8
+  y = 624..720    Wall Side ×8
+```
+
+That gives 24 Wall Tops + 24 Wall Sides = 48 autotiles (`TILE_ID_A4 = 5888`; `kind % 16 < 8` ⇒ Wall Top). Each kind reserves 48 shape IDs — Wall Sides cycle through their 16 shapes — hence the **2304 ready-to-place 48×48 tiles** the converter unfolds per A4 sheet.
+
+**What this tool converts:** `*_A4.png` (unfolded), `*_A5.png` and `*_B/C/D/E.png`. Sheets A1–A3 are not converted yet.
+
 ### Conversion pipeline
 
 RPG Maker → Godot conversion pipeline:
@@ -210,7 +250,7 @@ This prefix grouping is the default **merging** behaviour: every sheet sharing a
 For every sheet, one `Tile` is created per cell:
 
 * a `TileRef` (tileset name, sheet type, zero-based column-major index) plus its coordinates;
-* **collision resolution** — when a `TilePropertiesResolver` is configured (i.e. a `Tilesets.json` is present), the tile's `TileRef` is mapped to the RPG Maker global Tile ID via `tile_to_tile_id()` (`B=0, C=256, D=512, E=768, A5=1536, A4=3328`, then row/column offset), the flags are decoded into `TileProperties`, and `tile_properties_to_collision()` converts the directional passage permissions into a Godot-agnostic `TileCollision`. Without a resolver the tile is kept collisionless, preserving the original behaviour.
+* **collision resolution** — when a `TilePropertiesResolver` is configured (i.e. a `Tilesets.json` is present), the tile's `TileRef` is mapped to the RPG Maker global Tile ID via `tile_to_tile_id()` (`B=0, C=256, D=512, E=768, A5=1536, A4=5888`, then row/column offset; for A4 the offset is `kind × 48 + shape`), the flags are decoded into `TileProperties`, and `tile_properties_to_collision()` converts the directional passage permissions into a Godot-agnostic `TileCollision`. Without a resolver the tile is kept collisionless, preserving the original behaviour.
 
 ```mermaid
 sequenceDiagram

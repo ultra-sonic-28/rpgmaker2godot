@@ -3,13 +3,11 @@ from pathlib import Path
 from PIL import Image
 
 from rpgmaker2godot.atlas.builder import AtlasBuilder
-from rpgmaker2godot.atlas.writer import AtlasWriter
 from rpgmaker2godot.atlas.models import Atlas, AtlasPlacement
+from rpgmaker2godot.atlas.writer import AtlasWriter
 from rpgmaker2godot.model import SheetType, TileRef
-
 from tests.helpers.atlas import (
     make_sheet,
-    make_tileset,
     make_tileset_with_sheets,
 )
 
@@ -178,6 +176,137 @@ def test_atlas_background_is_transparent(
             0,
             0,
         )
+
+
+def test_writes_a4_quarter_composed_tile(
+    tmp_path: Path,
+) -> None:
+    """An A4 placement composes its four 24x24 quarters in the atlas.
+
+    Build a minimal 768x720 A4 sheet where each 24x24 quarter has a
+    unique colour, then export an unfolded tile and check that the
+    resulting atlas cell contains the four quarters selected by the
+    engine shape table (here Wall Top, autotile 0, shape 0).
+    """
+
+    from rpgmaker2godot.tileset.autotile.a4 import a4_shape_quarters
+
+    source_path = tmp_path / "Inside_A4.png"
+    source = Image.new("RGBA", (768, 720))
+    for y in range(0, 720, 24):
+        for x in range(0, 768, 24):
+            qx, qy = x // 24, y // 24
+            # Deterministic unique colour per quarter.
+            source.paste(
+                ((qx * 37) % 256, (qy * 61) % 256, (qx + qy * 3) % 256, 255),
+                (x, y, x + 24, y + 24),
+            )
+    source.save(source_path)
+
+    # Use SimpleConverter to unfold the A4 sheet into tiles.
+    from rpgmaker2godot.analysis.detector import TilesetDetector
+    from rpgmaker2godot.conversion.converter import SimpleConverter
+
+    analysis = TilesetDetector().analyze(tmp_path)
+    conversion = SimpleConverter().convert(analysis)
+
+    tileset = conversion.tilesets[0]
+    # Placements for the whole tileset (A4 only here).
+    atlas = AtlasBuilder().build(tileset)
+
+    # Take the placement for tile index 0 (autotile 0, shape 0).
+    a4_placements = [
+        p
+        for p in atlas.placements
+        if p.tile.sheet_type == SheetType.A4
+    ]
+    assert len(a4_placements) == 48 * 48
+    placement0 = a4_placements[0]
+
+    # Atlas position of the first A4 tile (in the packed region).
+    ax, ay = placement0.atlas_x, placement0.atlas_y
+    assert (ax, ay) == (0, 0)
+
+    # The engine shape table picks quarters for (kind 0, shape 0).
+    quarters = a4_shape_quarters(0, 0)
+
+    output_path = tmp_path / "atlas.png"
+    AtlasWriter().write(atlas, output_path)
+
+    with Image.open(output_path) as image:
+        # Each 24x24 quadrant of the atlas tile must carry the colour of
+        # the matching source quarter.
+        for index, (qx, qy, dx, dy) in enumerate(quarters):
+            # The source quarter colour.
+            sx, sy = qx, qy
+            expected = source.getpixel((sx + 12, sy + 12))
+            # The atlas pixel at the destination quadrant's centre.
+            actual = image.getpixel((ax + dx + 12, ay + dy + 12))
+            assert actual == expected, (
+                f"quarter {index}: expected {expected} got {actual}"
+            )
+
+    image.close()
+    source.close()
+
+
+def test_writes_a4_autotile_on_transparent_background(
+    tmp_path: Path,
+) -> None:
+    """A4 autotile tiles must sit on a transparent background.
+
+    The composed 48x48 tiles are drawn onto the transparent atlas
+    canvas and every source quarter keeps its alpha channel: fully
+    transparent quarters stay transparent, semi-transparent pixels are
+    preserved, and the surrounding canvas remains transparent too.
+    """
+
+    from rpgmaker2godot.analysis.detector import TilesetDetector
+    from rpgmaker2godot.conversion.converter import SimpleConverter
+    from rpgmaker2godot.tileset.autotile.a4 import a4_shape_quarters
+
+    source_path = tmp_path / "Inside_A4.png"
+    source = Image.new("RGBA", (768, 720), (0, 0, 0, 0))
+
+    # Quarter with a recognizable alpha = unique per 24x24 cell.
+    for y in range(0, 720, 24):
+        for x in range(0, 768, 24):
+            qx, qy = x // 24, y // 24
+            alpha = (qx * 7 + qy * 5) % 256
+            source.paste(
+                (120, 90, 60, alpha),
+                (x, y, x + 24, y + 24),
+            )
+    source.save(source_path)
+
+    analysis = TilesetDetector().analyze(tmp_path)
+    conversion = SimpleConverter().convert(analysis)
+    atlas = AtlasBuilder().build(conversion.tilesets[0])
+
+    output_path = tmp_path / "atlas.png"
+    AtlasWriter().write(atlas, output_path)
+
+    # Autotile 0 (Wall Top), shape 0 -- engine-selected quarters.
+    quarters = a4_shape_quarters(0, 0)
+
+    with Image.open(output_path) as image:
+        assert image.mode == "RGBA"
+
+        for index, (sx, sy, dx, dy) in enumerate(quarters):
+            src_alpha = source.getpixel((sx + 12, sy + 12))[3]
+            out_alpha = image.getpixel((dx + 12, dy + 12))[3]
+            assert out_alpha == src_alpha, (
+                f"quarter {index}: source alpha {src_alpha} != "
+                f"output alpha {out_alpha}"
+            )
+
+        # A quarter that is fully transparent must stay a transparent
+        # hole (alpha 0) in the output.
+        for index, (sx, sy, dx, dy) in enumerate(quarters):
+            if source.getpixel((sx + 12, sy + 12))[3] == 0:
+                assert image.getpixel((dx + 12, dy + 12))[3] == 0
+
+    source.close()
 
 
 def test_writes_multi_sheet_atlas(tmp_path: Path) -> None:

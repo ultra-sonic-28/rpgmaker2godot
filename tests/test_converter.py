@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from rpgmaker2godot.analysis.models import (
     AnalysisResult,
     RPGMakerVersion,
@@ -7,6 +9,7 @@ from rpgmaker2godot.analysis.models import (
 )
 from rpgmaker2godot.conversion import SimpleConverter
 from rpgmaker2godot.model import SheetType
+from rpgmaker2godot.tileset.tile_id import tile_to_tile_id
 
 
 def make_sheet(
@@ -145,6 +148,90 @@ def test_converts_a5_dimensions() -> None:
     assert sheet.columns == 8
     assert sheet.rows == 16
     assert len(sheet.tiles) == 128
+
+
+def test_converts_a4_dimensions() -> None:
+    analysis = make_analysis(
+        make_sheet(
+            "Inside",
+            SheetType.A4,
+            768,
+            720,
+        )
+    )
+
+    result = SimpleConverter().convert(analysis)
+
+    sheet = result.tilesets[0].sheets[0]
+
+    # The A4 sheet (768x720) holds 48 autotiles, each unfolded into its
+    # 48 connection variants: 48 * 48 = 2304 tiles.
+    assert len(sheet.tiles) == 48 * 48
+
+    # The conversion metadata describes the packed atlas region.
+    assert sheet.columns == 16
+    assert sheet.rows == 48 * 48 // 16
+    assert sheet.width == 16 * 48
+    assert sheet.height == (48 * 48 // 16) * 48
+
+    # Every tile is a 48x48 ready-to-place autotile variant.
+    assert all(tile.width == 48 and tile.height == 48 for tile in sheet.tiles)
+
+
+def test_a4_tile_ids_map_to_engine_ids() -> None:
+    """index = local_kind*48 + shape; ID = base(A4=5888) + index."""
+
+    analysis = make_analysis(
+        make_sheet("Inside", SheetType.A4, 768, 720)
+    )
+
+    sheet = SimpleConverter().convert(analysis).tilesets[0].sheets[0]
+
+    first = sheet.tiles[0]
+    assert first.ref.index == 0
+    assert tile_to_tile_id(first) == 5888 + 0
+
+    # Autotile 1 = local_kind 0, shape 1.
+    assert tile_to_tile_id(sheet.tiles[1]) == 5888 + 1
+
+    # Shape 9 of kind 0, and the start of kind 1 (index 48).
+    assert tile_to_tile_id(sheet.tiles[9]) == 5888 + 9
+    assert sheet.tiles[48].ref.index == 48
+    assert tile_to_tile_id(sheet.tiles[48]) == 5888 + 48
+
+
+def test_a4_rejects_non_canonical_dimensions() -> None:
+    analysis = make_analysis(
+        make_sheet(
+            "Inside",
+            SheetType.A4,
+            768,
+            768,
+        )
+    )
+
+    with pytest.raises(ValueError):
+        SimpleConverter().convert(analysis)
+
+
+def test_groups_a4_before_a5() -> None:
+    """A4 walls must be stacked beneath A5 ground and B-E overlays."""
+
+    analysis = make_analysis(
+        make_sheet("Inside", SheetType.A5, 384, 768),
+        make_sheet("Inside", SheetType.A4, 768, 720),
+        make_sheet("Inside", SheetType.B, 768, 768),
+    )
+
+    result = SimpleConverter().convert(analysis)
+
+    tileset = result.tilesets[0]
+
+    assert [sheet.sheet_type for sheet in tileset.sheets] == [
+        SheetType.A4,
+        SheetType.A5,
+        SheetType.B,
+    ]
 
 
 def test_groups_sheets_into_tilesets() -> None:

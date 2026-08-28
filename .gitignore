@@ -53,3 +53,4 @@ Desktop.ini
 .env.*
 output/
 rpgmaker2godot.log
+rmmz_core.js

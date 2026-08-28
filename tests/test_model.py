@@ -170,6 +170,7 @@ def test_tile_ref_is_immutable() -> None:
 
 def test_sheet_type_order_is_canonical() -> None:
     expected_order = (
+        SheetType.A4,
         SheetType.A5,
         SheetType.B,
         SheetType.C,
@@ -179,5 +180,5 @@ def test_sheet_type_order_is_canonical() -> None:
 
     orders = [sheet_type.order for sheet_type in expected_order]
 
-    assert orders == [0, 1, 2, 3, 4]
+    assert orders == [0, 1, 2, 3, 4, 5]
     assert sorted(SheetType, key=lambda st: st.order) == list(expected_order)

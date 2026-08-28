@@ -55,7 +55,7 @@ src/rpgmaker2godot/
 ├── cli.py                          # CLI entry point (main) — reads Tilesets.json to resolve collisions
 ├── analysis/                       # PNG sheet detection (TilesetDetector)
 │   ├── detector.py                 # TilesetDetector: scans the input directory for RPG Maker sheets
-│   │                               #   (A5/B/C/D/E.png), validates their dimensions against the tile
+│   │                               #   (A4/A5/B/C/D/E.png), validates their dimensions against the tile
 │   │                               #   size and produces an AnalysisResult
 │   └── models.py                   # SheetInfo, AnalysisResult, RPGMakerVersion — analysis data model
 ├── conversion/                     # AnalysisResult → internal model transformation
@@ -66,9 +66,13 @@ src/rpgmaker2godot/
 │   ├── model.py                    # TileProperties, TilesetFlags
 │   ├── resolver.py                 # TilePropertiesResolver
 │   ├── collision.py                # tile_properties_to_collision()
-│   └── tile_id.py                  # TileRef → global Tile ID conversion
+│   ├── tile_id.py                  # TileRef → global Tile ID conversion
+│   └── autotile/                   # RPG Maker autotile composition
+│       ├── shapes.py               # FLOOR_AUTOTILE_TABLE (48) + WALL_AUTOTILE_TABLE (16), verbatim
+│       ├── composer.py             # compose 48x48 tiles from 24x24 quarters + unfold
+│       └── a4.py                   # map the 48 A4 autotiles to source regions + unfold
 ├── model/                          # Shared internal model (immutable)
-│   ├── enums.py                    # SheetType enum + its canonical stacking order (A5, B, C, D, E)
+│   ├── enums.py                    # SheetType enum + its canonical stacking order (A4, A5, B, C, D, E)
 │   ├── sheet.py                    # Sheet — one source tilesheet together with its extracted tiles
 │   ├── tile.py                     # Tile + TileRef — one tile with its geometry, optional RPG Maker
 │   │                               #   properties and derived collision
@@ -154,7 +158,7 @@ flowchart LR
     G --> H["resource_writer"]
     H --> I[".tres"]
 
-    A -.->|"directory scan<br/>A5/B/C/D/E.png regex"| A
+    A -.->|"directory scan<br/>A4/A5/B/C/D/E.png regex"| A
     B -.->|"Tile creation<br/>TileRef + coordinates"| B
 ```
 
@@ -162,7 +166,7 @@ The pipeline is split in three phases, orchestrated by `rpgmaker2godot.cli.main(
 
 #### 1. Analysis — `analysis/`
 
-`TilesetDetector.analyze()` scans the input directory for supported RPG Maker sheets (`A5.png`, `B.png`, `C.png`, `D.png`, `E.png`, matched case-insensitively and optionally prefixed, e.g. `world_B.png`). For each sheet it validates that both dimensions are divisible by the tile size (48 px by default), then produces an `analysis.SheetInfo` per sheet and wraps them in an `analysis.AnalysisResult`:
+`TilesetDetector.analyze()` scans the input directory for supported RPG Maker sheets (`A4.png`, `A5.png`, `B.png`, `C.png`, `D.png`, `E.png`, matched case-insensitively and optionally prefixed, e.g. `world_B.png`). For each sheet it validates that both dimensions are divisible by the tile size (48 px by default), then produces an `analysis.SheetInfo` per sheet and wraps them in an `analysis.AnalysisResult`:
 
 * detects the dimensions, column/row count and tile size of every sheet;
 * collects non-fatal issues as warnings (e.g. an unsupported/invalid PNG) without aborting the whole scan;
@@ -199,14 +203,14 @@ sequenceDiagram
 
 #### 2. Conversion — `conversion/`, `tileset/`
 
-`SimpleConverter.convert()` turns the `AnalysisResult` into the internal, immutable `ConversionResult` model. Sheets sharing the same filename prefix are grouped into one `Tileset` and ordered by their canonical stacking order (A5, B, C, D, E).
+`SimpleConverter.convert()` turns the `AnalysisResult` into the internal, immutable `ConversionResult` model. Sheets sharing the same filename prefix are grouped into one `Tileset` and ordered by their canonical stacking order (A4, A5, B, C, D, E).
 
 This prefix grouping is the default **merging** behaviour: every sheet sharing a prefix ends up stacked in a single atlas/`.tres`. Passing `--no-merge` keeps the source sheet split instead — each detected sheet becomes its own `Tileset`, named after the sheet file itself (so `world_B.png` yields a `world_B` tileset), and the export step then emits one `<sheet>.png` + `<sheet>.tres` per input sheet.
 
 For every sheet, one `Tile` is created per cell:
 
 * a `TileRef` (tileset name, sheet type, zero-based column-major index) plus its coordinates;
-* **collision resolution** — when a `TilePropertiesResolver` is configured (i.e. a `Tilesets.json` is present), the tile's `TileRef` is mapped to the RPG Maker global Tile ID via `tile_to_tile_id()` (`B=0, C=256, D=512, E=768, A5=1536`, then row/column offset), the flags are decoded into `TileProperties`, and `tile_properties_to_collision()` converts the directional passage permissions into a Godot-agnostic `TileCollision`. Without a resolver the tile is kept collisionless, preserving the original behaviour.
+* **collision resolution** — when a `TilePropertiesResolver` is configured (i.e. a `Tilesets.json` is present), the tile's `TileRef` is mapped to the RPG Maker global Tile ID via `tile_to_tile_id()` (`B=0, C=256, D=512, E=768, A5=1536, A4=3328`, then row/column offset), the flags are decoded into `TileProperties`, and `tile_properties_to_collision()` converts the directional passage permissions into a Godot-agnostic `TileCollision`. Without a resolver the tile is kept collisionless, preserving the original behaviour.
 
 ```mermaid
 sequenceDiagram

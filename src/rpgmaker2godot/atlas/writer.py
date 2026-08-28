@@ -39,22 +39,45 @@ class AtlasWriter:
                         placement.source_path
                     ] = source
 
-                region = source.crop(
-                    (
-                        placement.source_x,
-                        placement.source_y,
-                        placement.source_x + placement.width,
-                        placement.source_y + placement.height,
-                    )
-                )
+                if placement.quarters:
+                    for quarter in placement.quarters:
+                        piece = source.crop(
+                            (
+                                quarter.source_x,
+                                quarter.source_y,
+                                quarter.source_x + quarter.width,
+                                quarter.source_y + quarter.height,
+                            )
+                        )
 
-                image.alpha_composite(
-                    region,
-                    (
-                        placement.atlas_x,
-                        placement.atlas_y,
-                    ),
-                )
+                        image.alpha_composite(
+                            piece,
+                            (
+                                placement.atlas_x + quarter.dest_x,
+                                placement.atlas_y + quarter.dest_y,
+                            ),
+                        )
+
+                        piece.close()
+                else:
+                    region = source.crop(
+                        (
+                            placement.source_x,
+                            placement.source_y,
+                            placement.source_x + placement.width,
+                            placement.source_y + placement.height,
+                        )
+                    )
+
+                    image.alpha_composite(
+                        region,
+                        (
+                            placement.atlas_x,
+                            placement.atlas_y,
+                        ),
+                    )
+
+                    region.close()
 
             image.save(output_path, "PNG")
 

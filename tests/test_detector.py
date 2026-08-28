@@ -133,3 +133,23 @@ def test_lowercase_sheet_names_are_supported(tmp_path: Path) -> None:
 
     assert result.sheets[0].prefix == "Inside"
     assert result.sheets[1].prefix == "Inside"
+
+
+def test_detects_a4_sheets(tmp_path: Path) -> None:
+    create_sheet(tmp_path, "Inside_A4.png", size=(48 * 16, 48 * 15))
+    create_sheet(tmp_path, "Inside_A5.png")
+    create_sheet(tmp_path, "Inside_B.png")
+
+    result = TilesetDetector().analyze(tmp_path)
+
+    assert [sheet.sheet_type for sheet in result.sheets] == [
+        SheetType.A4,
+        SheetType.A5,
+        SheetType.B,
+    ]
+
+    a4 = result.sheets[0]
+
+    assert a4.prefix == "Inside"
+    assert a4.columns == 16
+    assert a4.rows == 15

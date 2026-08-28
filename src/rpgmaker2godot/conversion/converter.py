@@ -7,10 +7,20 @@ from rpgmaker2godot.model import (
     ConversionResult,
     Sheet,
     Tile,
-    Tileset,
     TileRef,
+    Tileset,
 )
 from rpgmaker2godot.model.enums import SheetType
+from rpgmaker2godot.tileset.autotile.a4 import (
+    A4_AUTOTILE_COUNT,
+    A4_HEIGHT,
+    A4_PACK_COLUMNS,
+    A4_PACK_HEIGHT,
+    A4_PACK_ROWS,
+    A4_PACK_WIDTH,
+    A4_SHAPES_PER_AUTOTILE,
+    A4_WIDTH,
+)
 from rpgmaker2godot.tileset.collision import tile_properties_to_collision
 from rpgmaker2godot.tileset.resolver import TilePropertiesResolver
 from rpgmaker2godot.tileset.tile_id import tile_to_tile_id
@@ -87,23 +97,17 @@ class SimpleConverter:
         tileset_name: str,
         sheet_info: SheetInfo,
     ) -> Sheet:
-        tiles = tuple(
-            self._resolve_tile_properties(
-                self._create_tile(
-                    tileset_name=tileset_name,
-                    sheet_type=sheet_info.sheet_type,
-                    index=index,
-                    column=column,
-                    row=row,
-                    tile_width=sheet_info.tile_width,
-                    tile_height=sheet_info.tile_height,
-                )
+        if sheet_info.sheet_type == SheetType.A4:
+            return self._convert_a4_sheet(
+                tileset_name,
+                sheet_info,
             )
-            for index, (row, column) in enumerate(
-                self._tile_coordinates(
-                    columns=sheet_info.columns,
-                    rows=sheet_info.rows,
-                )
+
+        tiles = tuple(
+            self._resolve_tile_properties(tile)
+            for tile in self._sheet_tiles(
+                tileset_name,
+                sheet_info,
             )
         )
 
@@ -118,6 +122,108 @@ class SimpleConverter:
             rows=sheet_info.rows,
             tiles=tiles,
         )
+
+    def _convert_a4_sheet(
+        self,
+        tileset_name: str,
+        sheet_info: SheetInfo,
+    ) -> Sheet:
+        """Convert an A4 wall-autotile sheet into its unfolded tiles.
+
+        The A4 sheet (``*_A4.png``, 768x720) stores 48 autotile
+        **sources**: 8 columns of 96px x 6 vertical slots, alternating
+        Wall Top (96x144) and Wall Side (96x96). Following the
+        authoritative mapping in ``rmmz_core.js``, each of the 48
+        autotiles is unfolded into its 48 connection variants (48x48),
+        producing 2304 ready-to-place tiles.
+
+        The sheet's conversion metadata describes the **packed**
+        result (16 tiles per row, matching the other sheets' 768px
+        width), not the source image.
+        """
+
+        if (
+            sheet_info.width != A4_WIDTH
+            or sheet_info.height != A4_HEIGHT
+        ):
+            raise ValueError(
+                f"{sheet_info.path.name}: A4 sheets must be "
+                f"{A4_WIDTH}x{A4_HEIGHT}px, got "
+                f"{sheet_info.width}x{sheet_info.height}px."
+            )
+
+        tiles: list[Tile] = []
+
+        for local_kind in range(A4_AUTOTILE_COUNT):
+            for shape in range(A4_SHAPES_PER_AUTOTILE):
+                index = local_kind * A4_SHAPES_PER_AUTOTILE + shape
+                column = local_kind % 8
+                row = local_kind // 8
+
+                x = (index % A4_PACK_COLUMNS) * 48
+                y = (index // A4_PACK_COLUMNS) * 48
+
+                tile = self._create_tile(
+                    tileset_name=tileset_name,
+                    sheet_type=SheetType.A4,
+                    index=index,
+                    column=column,
+                    row=row,
+                    x=x,
+                    y=y,
+                    width=48,
+                    height=48,
+                )
+
+                tiles.append(
+                    self._resolve_tile_properties(tile)
+                )
+
+        return Sheet(
+            sheet_type=SheetType.A4,
+            source_path=sheet_info.path,
+            width=A4_PACK_WIDTH,
+            height=A4_PACK_HEIGHT,
+            tile_width=48,
+            tile_height=48,
+            columns=A4_PACK_COLUMNS,
+            rows=A4_PACK_ROWS,
+            tiles=tuple(tiles),
+        )
+
+    def _sheet_tiles(
+        self,
+        tileset_name: str,
+        sheet_info: SheetInfo,
+    ) -> Iterator[Tile]:
+        """Stream the tiles of a regular (non-A4) sheet grid."""
+        geometry = (
+            (
+                column * sheet_info.tile_width,
+                row * sheet_info.tile_height,
+                sheet_info.tile_width,
+                sheet_info.tile_height,
+                column,
+                row,
+            )
+            for row, column in self._tile_coordinates(
+                columns=sheet_info.columns,
+                rows=sheet_info.rows,
+            )
+        )
+
+        for index, (x, y, width, height, column, row) in enumerate(geometry):
+            yield self._create_tile(
+                tileset_name=tileset_name,
+                sheet_type=sheet_info.sheet_type,
+                index=index,
+                column=column,
+                row=row,
+                x=x,
+                y=y,
+                width=width,
+                height=height,
+            )
 
     @staticmethod
     def _tile_coordinates(
@@ -135,8 +241,10 @@ class SimpleConverter:
         index: int,
         column: int,
         row: int,
-        tile_width: int,
-        tile_height: int,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
     ) -> Tile:
         return Tile(
             ref=TileRef(
@@ -146,10 +254,10 @@ class SimpleConverter:
             ),
             column=column,
             row=row,
-            x=column * tile_width,
-            y=row * tile_height,
-            width=tile_width,
-            height=tile_height,
+            x=x,
+            y=y,
+            width=width,
+            height=height,
         )
 
     def _resolve_tile_properties(

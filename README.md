@@ -69,8 +69,9 @@ src/rpgmaker2godot/
 │   ├── tile_id.py                  # TileRef → global Tile ID conversion
 │   └── autotile/                   # RPG Maker autotile composition
 │       ├── shapes.py               # FLOOR_AUTOTILE_TABLE (48) + WALL_AUTOTILE_TABLE (16), verbatim
-│       ├── composer.py             # compose 48x48 tiles from 24x24 quarters + unfold
-│       └── a4.py                   # map the 48 A4 autotiles to source regions and shape quarters
+│       ├── composer.py             # compose 48x48 tiles from 24x24 quarters (+ unfold helpers)
+│       └── a4.py                   # A4 sheet geometry + the 48 autotiles' source regions and
+│       │                           #   shape quarters (canonical 768x720 → packed 16x144 grid)
 ├── model/                          # Shared internal model (immutable)
 │   ├── enums.py                    # SheetType enum + its canonical stacking order (A4, A5, B, C, D, E)
 │   ├── sheet.py                    # Sheet — one source tilesheet together with its extracted tiles
@@ -79,9 +80,12 @@ src/rpgmaker2godot/
 │   ├── tileset.py                  # Tileset + ConversionResult — group of sheets assembled together
 │   └── tile_collision.py           # TileCollision — directional passage blocking, free of any Godot concept
 ├── atlas/                          # PNG atlas building and writing
-│   ├── builder.py                  # AtlasBuilder: stacks a tileset's sheets into a single atlas geometry
-│   ├── models.py                   # Atlas + AtlasPlacement — atlas model with each tile's coordinates
-│   └── writer.py                   # AtlasWriter: renders an internal Atlas to a PNG image
+│   ├── builder.py                  # AtlasBuilder: stacks a tileset's sheets into a single atlas
+│   │                               #   geometry; composes the unfolded A4 tiles (4 quarters each)
+│   ├── models.py                   # Atlas + AtlasPlacement + AtlasQuarter — each tile's coordinates
+│   │                               #   (AtlasQuarter = one 24x24 piece of a composed A4 tile)
+│   └── writer.py                   # AtlasWriter: renders an internal Atlas to a PNG image, A4 tiles
+│                                   #   composited quarter by quarter onto a transparent canvas
 ├── image/                          # Image extraction (PIL/Pillow)
 │   ├── extractor.py                # TileExtractor: crops a single Tile out of an ImageSource
 │   └── source.py                   # ImageSource: lazy access to an image file (open/close, context manager)
@@ -199,7 +203,8 @@ flowchart LR
     H --> I[".tres"]
 
     A -.->|"directory scan<br/>A4/A5/B/C/D/E.png regex"| A
-    B -.->|"Tile creation<br/>TileRef + coordinates"| B
+    B -.->|"Tile creation — TileRef + coordinates<br/>A4: 48 kinds × 48 shapes = 2304 unfolded tiles"| B
+    E -.->|"A4 tiles composed from four 24×24 quarters<br/>(AtlasQuarter, transparent canvas)"| E
 ```
 
 The pipeline is split in three phases, orchestrated by `rpgmaker2godot.cli.main()`.
@@ -223,7 +228,7 @@ sequenceDiagram
     loop For each file
         D->>FS: iterdir()
         FS-->>D: path
-        D-->>D: match A5/B/C/D/E.png (regex, case-insensitive)
+        D-->>D: match A4/A5/B/C/D/E.png (regex, case-insensitive)
         alt no match
             Note over D: file ignored
         else match
@@ -247,8 +252,9 @@ sequenceDiagram
 
 This prefix grouping is the default **merging** behaviour: every sheet sharing a prefix ends up stacked in a single atlas/`.tres`. Passing `--no-merge` keeps the source sheet split instead — each detected sheet becomes its own `Tileset`, named after the sheet file itself (so `world_B.png` yields a `world_B` tileset), and the export step then emits one `<sheet>.png` + `<sheet>.tres` per input sheet.
 
-For every sheet, one `Tile` is created per cell:
+For every sheet, one `Tile` is created per cell — except A4, which is *unfolded*:
 
+* **A4 unfolding** — the sheet must have the canonical 768×720 dimensions, then the converter emits one 48×48 tile per (autotile kind, shape) pair: 48 × 48 = **2304 tiles**, encoded as `TileRef.index = kind × 48 + shape` and laid out on the packed 16×144 grid the atlas step consumes;
 * a `TileRef` (tileset name, sheet type, zero-based column-major index) plus its coordinates;
 * **collision resolution** — when a `TilePropertiesResolver` is configured (i.e. a `Tilesets.json` is present), the tile's `TileRef` is mapped to the RPG Maker global Tile ID via `tile_to_tile_id()` (`B=0, C=256, D=512, E=768, A5=1536, A4=5888`, then row/column offset; for A4 the offset is `kind × 48 + shape`), the flags are decoded into `TileProperties`, and `tile_properties_to_collision()` converts the directional passage permissions into a Godot-agnostic `TileCollision`. Without a resolver the tile is kept collisionless, preserving the original behaviour.
 
@@ -262,7 +268,11 @@ sequenceDiagram
     CLI->>C: convert(analysis)
     C-->>C: group sheets by prefix → Tileset(s),<br/>ordered by SheetType.order
     loop For each sheet
-        Note over C: one Tile per cell (column, row, index)
+        alt A4 sheet (autotile unfolding)
+            Note over C: 48 kinds × 48 shapes = 2304 tiles<br/>TileRef.index = kind × 48 + shape
+        else other sheet
+            Note over C: one Tile per cell (column, row, index)
+        end
         C-->>C: _create_tile(TileRef, geometry)
         alt resolver configured
             C-->>C: tile_to_tile_id(tile) → global Tile ID
@@ -282,8 +292,8 @@ sequenceDiagram
 
 `SimpleExporter.export()` writes, for each `Tileset`, a PNG atlas and a Godot `.tres` resource into the output directory:
 
-1. `AtlasBuilder.build()` stacks the tileset's sheets into a single atlas geometry (`Atlas`), recording each tile's source and atlas coordinates.
-2. `AtlasWriter.write()` renders that atlas to `<name>.png` by cropping each tile from its source sheet (`image/`'s `TileExtractor`/`ImageSource` handle the per-tile image access).
+1. `AtlasBuilder.build()` stacks the tileset's sheets into a single atlas geometry (`Atlas`), recording each tile's source and atlas coordinates. A4 tiles are *composed*: their placement holds four `AtlasQuarter` pieces (24×24 each) selected by the engine shape tables, not a single rectangular crop.
+2. `AtlasWriter.write()` renders that atlas to `<name>.png` — normal tiles are cropped from their source sheet, while every A4 tile is composited from its four quarters onto a transparent 48×48 canvas (`image/`'s `TileExtractor`/`ImageSource` handle the per-tile image access).
 3. `GodotAtlasMapper.map()` translates the atlas into Godot's atlas model.
 4. `GodotTileSetBuilder.build()` produces the `GodotTileSet` (tile shapes, source regions, collisions).
 5. `GodotResourceWriter.write()` serializes it to the `<name>.tres` resource (Godot text-format), referencing the atlas texture.
@@ -305,8 +315,10 @@ sequenceDiagram
     CLI->>E: export(conversion, output_directory)
     loop For each Tileset
         E->>AB: build(tileset)
+        Note over AB: A4 tiles carry four AtlasQuarter<br/>pieces (engine shape tables)
         AB-->>E: Atlas (geometry + placements)
         E->>AW: write(atlas, <name>.png)
+        Note over AW: A4 tiles composited from their<br/>quarters onto a transparent canvas
         AW->>FS: <name>.png
         E->>GM: map(atlas)
         GM-->>GM: tile_collision_to_godot() (semantic → geometry)

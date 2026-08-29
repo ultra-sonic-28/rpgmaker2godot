@@ -3,6 +3,7 @@
 from importlib.metadata import PackageNotFoundError, metadata
 
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 
 from ..build_info import BUILD_NUMBER
@@ -25,7 +26,10 @@ def display_title(
     console = Console()
 
     title = Panel(
-        message,
+        # The message is plain text: escape it so that rich never
+        # interprets square brackets (e.g. an argparse usage string)
+        # as markup tags.
+        escape(message),
         style="bright_white on blue",  # White text on blue background
         title="",  # Panel title
         border_style="blue",  # Blue border
@@ -44,12 +48,16 @@ def display_warning(
 
     Bright white text on an orange background with a matching
     border — the same highlight color the CLI uses for warnings.
+
+    The message is plain text: it is escaped so that square brackets
+    (for instance an argparse usage line such as ``[--tolerance
+    TOLERANCE]``) are never interpreted as rich markup tags.
     """
 
     console = Console()
 
     title = Panel(
-        message,
+        escape(message),
         style="bright_white on #ff8700",
         border_style="#ff8700",
         expand=True,

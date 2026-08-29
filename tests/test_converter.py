@@ -1,4 +1,5 @@
 import math
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,9 @@ from rpgmaker2godot.analysis.models import (
 )
 from rpgmaker2godot.conversion import SimpleConverter
 from rpgmaker2godot.model import SheetType
+from rpgmaker2godot.model.tile import Tile
+from rpgmaker2godot.model.tile_collision import TileCollision
+from rpgmaker2godot.tileset.model import TileProperties
 from rpgmaker2godot.tileset.tile_id import tile_to_tile_id
 
 
@@ -420,6 +424,125 @@ def test_a4_pixel_dedup_merges_across_autotile_kinds(
     assert slots == {(slot % 16, slot // 16) for slot in range(len(indexes))}
 
     assert sheet.rows == math.ceil(len(indexes) / 16)
+
+
+def test_a4_pixel_tolerance_merges_noisy_tiles(tmp_path: Path) -> None:
+    """Tolerance dedup: tiles differing by a few stray pixels merge.
+
+    A uniform sheet with one stray pixel yields exactly two
+    exact-unique tiles (the second differs by a single pixel and is
+    picked by kind 0 shape 47 only). The default converter keeps both;
+    a tolerance of 1 merges them into the first occurrence.
+    """
+
+    source_path = tmp_path / "Inside_A4.png"
+
+    write_a4_sheet(source_path, uniform_band=(0, 720))
+
+    with Image.open(source_path) as image:
+        sheet = image.convert("RGBA")
+
+    sheet.putpixel((5, 5), (255, 0, 0, 255))
+    sheet.save(source_path)
+    sheet.close()
+
+    analysis = make_analysis(
+        make_sheet("Inside", SheetType.A4, 768, 720, path=source_path)
+    )
+
+    exact_sheet = (
+        SimpleConverter().convert(analysis).tilesets[0].sheets[0]
+    )
+
+    assert [tile.ref.index for tile in exact_sheet.tiles] == [0, 47]
+
+    tolerant_sheet = (
+        SimpleConverter(a4_pixel_tolerance=1)
+        .convert(analysis)
+        .tilesets[0]
+        .sheets[0]
+    )
+
+    assert len(tolerant_sheet.tiles) == 1
+    assert tolerant_sheet.tiles[0].ref.index == 0
+    assert tolerant_sheet.rows == 1
+
+
+def test_a4_pixel_tolerance_respects_collision(tmp_path: Path) -> None:
+    """Tiles within tolerance stay separate when collisions differ."""
+
+    source_path = tmp_path / "Inside_A4.png"
+
+    write_a4_sheet(source_path, uniform_band=(0, 720))
+
+    with Image.open(source_path) as image:
+        sheet = image.convert("RGBA")
+
+    sheet.putpixel((5, 5), (255, 0, 0, 255))
+    sheet.save(source_path)
+    sheet.close()
+
+    class StubResolver:
+        """Blocked everywhere except for the noisy shape 47."""
+
+        def resolve(self, tile: Tile) -> TileProperties:
+            blocked = TileProperties(
+                can_pass_down=False,
+                can_pass_left=False,
+                can_pass_right=False,
+                can_pass_up=False,
+                is_star=False,
+                is_ladder=False,
+                is_bush=False,
+                is_counter=False,
+                is_damage_floor=False,
+                terrain_tag=0,
+            )
+
+            if tile.ref.index == 47:
+                return replace(blocked, can_pass_down=True)
+
+            return blocked
+
+    tolerant_sheet = (
+        SimpleConverter(
+            tile_properties_resolver=StubResolver(),
+            a4_pixel_tolerance=1,
+        )
+        .convert(
+            make_analysis(
+                make_sheet(
+                    "Inside",
+                    SheetType.A4,
+                    768,
+                    720,
+                    path=source_path,
+                )
+            )
+        )
+        .tilesets[0]
+        .sheets[0]
+    )
+
+    assert len(tolerant_sheet.tiles) == 2
+
+    collisions = {
+        tile.ref.index: tile.collision for tile in tolerant_sheet.tiles
+    }
+
+    assert collisions[0] == TileCollision(
+        block_down=True,
+        block_left=True,
+        block_right=True,
+        block_up=True,
+    )
+
+    assert collisions[47] == TileCollision(
+        block_down=False,
+        block_left=True,
+        block_right=True,
+        block_up=True,
+    )
 
 
 def test_groups_a4_before_a5(tmp_path: Path) -> None:

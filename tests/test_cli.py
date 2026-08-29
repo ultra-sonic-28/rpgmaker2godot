@@ -1,5 +1,4 @@
 import json
-import logging
 from pathlib import Path
 
 from PIL import Image
@@ -472,7 +471,10 @@ def test_missing_arguments_show_banner_then_usage_panel(
     exit_code = main([])
 
     captured = capsys.readouterr()
-    output = flatten(captured.out)
+
+    # Panel borders sit between wrapped lines: strip them before
+    # flattening so the (long) usage line can be matched contiguously.
+    output = flatten(captured.out.replace("│", " "))
 
     assert exit_code == 2
 
@@ -485,7 +487,7 @@ def test_missing_arguments_show_banner_then_usage_panel(
 
     # The usage failure follows, rendered inside a warning frame.
     assert (
-        "usage: rpgmaker2godot [-h] [--simple] [--no-merge] input output"
+        "usage: rpgmaker2godot [-h] [--simple] [--no-merge] [--tolerance TOLERANCE] input output"
         in output
     )
     assert (
@@ -633,3 +635,86 @@ def test_conversion_records_stay_inside_the_test_sandbox(
     # …and the project log at the repository root stayed untouched.
     if before is not None:
         assert project_log.read_bytes() == before
+
+
+def test_tolerance_option_merges_noisy_a4_tiles(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    """--tolerance N merges A4 tiles differing by at most N pixels.
+
+    A uniform A4 sheet with one stray pixel produces two exact-unique
+    tiles; running again with --tolerance 1 collapses them into the
+    first occurrence.
+    """
+
+    input_directory = tmp_path / "tilesets"
+
+    create_sheet(
+        input_directory,
+        "Inside_A4.png",
+        size=(768, 720),
+        color=(90, 90, 90, 255),
+    )
+
+    with Image.open(input_directory / "Inside_A4.png") as image:
+        sheet = image.convert("RGBA")
+
+    sheet.putpixel((5, 5), (255, 0, 0, 255))
+    sheet.save(input_directory / "Inside_A4.png")
+    sheet.close()
+
+    default_exit = main(
+        [
+            "--simple",
+            "--no-merge",
+            str(input_directory),
+            str(tmp_path / "default"),
+        ]
+    )
+
+    assert default_exit == 0
+
+    default_output = capsys.readouterr().out
+    assert "Inside_A4: 2 tiles from 1 sheet" in default_output
+
+    tolerant_exit = main(
+        [
+            "--simple",
+            "--no-merge",
+            "--tolerance",
+            "1",
+            str(input_directory),
+            str(tmp_path / "tolerant"),
+        ]
+    )
+
+    assert tolerant_exit == 0
+
+    tolerant_output = capsys.readouterr().out
+    assert "Inside_A4: 1 tile from 1 sheet" in tolerant_output
+
+    with Image.open(tmp_path / "tolerant" / "Inside_A4.png") as image:
+        assert image.size == (768, 48)
+
+
+def test_negative_tolerance_reports_usage(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    """A negative --tolerance is a usage error (exit code 2)."""
+
+    exit_code = main(
+        [
+            "--simple",
+            "--tolerance",
+            "-1",
+            str(tmp_path),
+            str(tmp_path / "output"),
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert "--tolerance must be >= 0." in flatten(captured.out)

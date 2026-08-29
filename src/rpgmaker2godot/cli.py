@@ -150,6 +150,17 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
 
+    parser.add_argument(
+        "--tolerance",
+        type=int,
+        default=0,
+        help=(
+            "Merge unfolded A4 tiles whose pixel difference is within "
+            "N pixels, discarding source-image noise (default: 0, "
+            "byte-exact match)."
+        ),
+    )
+
     # Enable ANSI escape sequences on the legacy Windows console.
     os.system("")
 
@@ -173,6 +184,16 @@ def main(argv: list[str] | None = None) -> int:
             _format_usage_error(
                 parser,
                 "Only --simple mode is currently supported.",
+            ),
+        )
+
+        return 2
+
+    if args.tolerance < 0:
+        display_warning(
+            _format_usage_error(
+                parser,
+                "--tolerance must be >= 0.",
             ),
         )
 
@@ -236,6 +257,7 @@ def main(argv: list[str] | None = None) -> int:
                     )
                 ),
                 no_merge=args.no_merge,
+                a4_pixel_tolerance=args.tolerance,
             )
 
             print(
@@ -249,6 +271,7 @@ def main(argv: list[str] | None = None) -> int:
 
             converter = SimpleConverter(
                 no_merge=args.no_merge,
+                a4_pixel_tolerance=args.tolerance,
             )
 
         _print_step(3, "Converting tiles")

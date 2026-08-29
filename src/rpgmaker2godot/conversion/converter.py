@@ -36,6 +36,7 @@ class SimpleConverter:
         *,
         tile_properties_resolver: TilePropertiesResolver | None = None,
         no_merge: bool = False,
+        a4_pixel_tolerance: int = 0,
     ) -> None:
         self._tile_properties_resolver = (
             tile_properties_resolver
@@ -44,6 +45,16 @@ class SimpleConverter:
         # When enabled, keep the source sheet split: one converted
         # Tileset per input sheet instead of grouping them by prefix.
         self._no_merge = no_merge
+
+        # Maximum number of pixels that may differ between two unfolded
+        # A4 tiles for them to merge (0 = byte-exact, the default).
+        if a4_pixel_tolerance < 0:
+            raise ValueError(
+                "a4_pixel_tolerance must be >= 0, "
+                f"got {a4_pixel_tolerance}."
+            )
+
+        self._a4_pixel_tolerance = a4_pixel_tolerance
 
     def convert(self, analysis: AnalysisResult) -> ConversionResult:
         tilesets: list[Tileset] = []
@@ -168,6 +179,7 @@ class SimpleConverter:
             unique = list(
                 a4_unique_tiles(
                     source,
+                    tolerance=self._a4_pixel_tolerance,
                     dedup_key=self._a4_dedup_key(tileset_name),
                 )
             )
@@ -218,13 +230,16 @@ class SimpleConverter:
     def _a4_dedup_key(
         self,
         tileset_name: str,
-    ) -> Callable[[int, bytes], tuple[bytes, TileCollision]] | None:
+    ) -> Callable[[int, bytes], TileCollision] | None:
         """Build the duplicate-identity hook for the A4 pixel dedup.
 
-        Without a properties resolver, tiles are identified by their
-        pixel content alone. With one, two graphically identical tiles
-        are only merged when they also resolve to the same directional
-        collision: RPG Maker flags live on the engine Tile IDs, so two
+        The pixel comparison itself (byte-exact, or within the
+        configured tolerance) is handled by ``a4_unique_tiles``. This
+        hook only adds the collision as an extra identity: without a
+        properties resolver, tiles are identified by their pixels
+        alone, while with one, two graphically identical tiles are only
+        merged when they also resolve to the same directional
+        collision — RPG Maker flags live on the engine Tile IDs, so two
         autotile kinds can look exactly the same while allowing a
         different passage.
         """
@@ -232,10 +247,12 @@ class SimpleConverter:
         if self._tile_properties_resolver is None:
             return None
 
+        resolver = self._tile_properties_resolver
+
         def dedup_key(
             index: int,
             signature: bytes,
-        ) -> tuple[bytes, TileCollision]:
+        ) -> TileCollision:
             tile = Tile(
                 ref=TileRef(
                     tileset=tileset_name,
@@ -250,16 +267,12 @@ class SimpleConverter:
                 height=48,
             )
 
-            properties = (
-                self._tile_properties_resolver.resolve(tile)
-            )
+            properties = resolver.resolve(tile)
 
-            collision = tile_properties_to_collision(
+            return tile_properties_to_collision(
                 properties,
                 tile_id=tile_to_tile_id(tile),
             )
-
-            return signature, collision
 
         return dedup_key
 

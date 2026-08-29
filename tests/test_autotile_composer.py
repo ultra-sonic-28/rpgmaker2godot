@@ -293,3 +293,42 @@ def test_a4_unique_tiles_accepts_custom_dedup_key() -> None:
     assert len(unique) == A4_UNIQUE_COMPOSITION_COUNT
 
     source.close()
+
+
+def test_a4_unique_tiles_rejects_negative_tolerance() -> None:
+    """A negative tolerance is rejected before any composition runs."""
+
+    source = Image.new("RGBA", (96, 96), (90, 90, 90, 255))
+
+    with pytest.raises(ValueError):
+        list(a4_unique_tiles(source, tolerance=-1))
+
+    source.close()
+
+
+def test_a4_unique_tiles_tolerance_merges_noisy_variants() -> None:
+    """Variants differing by a few stray pixels merge within tolerance.
+
+    A uniform sheet plus one changed pixel makes exactly one shape
+    (kind 0, shape 47 — the only one selecting the quarter containing
+    that pixel) differ from all the others by a single pixel: exact
+    dedup keeps both tiles, tolerance 1 keeps only the first.
+    """
+
+    from rpgmaker2godot.tileset.autotile.a4 import a4_shape_quarters
+
+    source = Image.new("RGBA", (768, 720), (90, 90, 90, 255))
+    source.putpixel((5, 5), (255, 0, 0, 255))
+
+    exact = list(a4_unique_tiles(source))
+
+    assert [index for index, _ in exact] == [0, 47]
+    assert exact[1][1] == a4_shape_quarters(0, 47)
+
+    tolerant = list(a4_unique_tiles(source, tolerance=1))
+
+    assert len(tolerant) == 1
+    assert tolerant[0][0] == 0
+    assert tolerant[0][1] == a4_shape_quarters(0, 0)
+
+    source.close()

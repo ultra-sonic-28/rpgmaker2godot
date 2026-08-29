@@ -255,7 +255,7 @@ This prefix grouping is the default **merging** behaviour: every sheet sharing a
 
 For every sheet, one `Tile` is created per cell — except A4, which is *unfolded*:
 
-* **A4 unfolding** — the sheet must have the canonical 768×720 dimensions, then the converter emits one 48×48 tile per **distinct** (autotile kind, shape) composition: the Wall Side table only holds 16 of the 48 reserved shape IDs, so the 2304 raw variants reduce to **1536 unique tiles** (24 Wall Tops × 48 + 24 Wall Sides × 16), each encoded as `TileRef.index = kind × 48 + shape` (first occurrence) and laid out on the packed 16×96 grid the atlas step consumes;
+* **A4 unfolding** — the sheet must have the canonical 768×720 dimensions, then the converter emits one 48×48 tile per **graphically distinct** (autotile kind, shape) composition: the Wall Side table only holds 16 of the 48 reserved shape IDs (2304 raw variants → 1536 compositions), and a pixel-level deduplication then keeps only the tiles that truly render differently — 1390 for the stock `Inside_A4.png`. Each kept tile is encoded as `TileRef.index = kind × 48 + shape` (first occurrence) and laid out on the packed 16-column grid the atlas step consumes. `--tolerance N` additionally merges tiles differing by at most N pixels to discard source-image noise (default 0 = byte-exact match);
 * a `TileRef` (tileset name, sheet type, zero-based column-major index) plus its coordinates;
 * **collision resolution** — when a `TilePropertiesResolver` is configured (i.e. a `Tilesets.json` is present), the tile's `TileRef` is mapped to the RPG Maker global Tile ID via `tile_to_tile_id()` (`B=0, C=256, D=512, E=768, A5=1536, A4=5888`, then row/column offset; for A4 the offset is `kind × 48 + shape`), the flags are decoded into `TileProperties`, and `tile_properties_to_collision()` converts the directional passage permissions into a Godot-agnostic `TileCollision`. Without a resolver the tile is kept collisionless, preserving the original behaviour.
 
@@ -270,7 +270,7 @@ sequenceDiagram
     C-->>C: group sheets by prefix → Tileset(s),<br/>ordered by SheetType.order
     loop For each sheet
         alt A4 sheet (autotile unfolding)
-            Note over C: 2304 raw variants → 1536 unique tiles<br/>TileRef.index = kind × 48 + shape (first occurrence)
+            Note over C: 2304 raw variants → graphically distinct tiles only<br/>TileRef.index = kind × 48 + shape (first occurrence)
         else other sheet
             Note over C: one Tile per cell (column, row, index)
         end

@@ -1,6 +1,9 @@
+import math
 from collections import defaultdict
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import replace
+
+from PIL import Image
 
 from rpgmaker2godot.analysis.models import AnalysisResult, SheetInfo
 from rpgmaker2godot.model import (
@@ -11,15 +14,14 @@ from rpgmaker2godot.model import (
     Tileset,
 )
 from rpgmaker2godot.model.enums import SheetType
+from rpgmaker2godot.model.tile_collision import TileCollision
 from rpgmaker2godot.tileset.autotile.a4 import (
-    A4_AUTOTILE_COUNT,
     A4_HEIGHT,
     A4_PACK_COLUMNS,
-    A4_PACK_HEIGHT,
-    A4_PACK_ROWS,
     A4_PACK_WIDTH,
     A4_SHAPES_PER_AUTOTILE,
     A4_WIDTH,
+    a4_unique_tiles,
 )
 from rpgmaker2godot.tileset.collision import tile_properties_to_collision
 from rpgmaker2godot.tileset.resolver import TilePropertiesResolver
@@ -134,8 +136,16 @@ class SimpleConverter:
         **sources**: 8 columns of 96px x 6 vertical slots, alternating
         Wall Top (96x144) and Wall Side (96x96). Following the
         authoritative mapping in ``rmmz_core.js``, each of the 48
-        autotiles is unfolded into its 48 connection variants (48x48),
-        producing 2304 ready-to-place tiles.
+        autotiles is unfolded into its 48 connection variants (48x48).
+
+        RPG Maker reserves 48 shape IDs per kind although the Wall Side
+        table only holds 16 shapes: those extra IDs compose
+        pixel-identical tiles. Only the **graphically distinct** tiles
+        are kept (``a4_unique_tiles``): the 2304 raw variants reduce to
+        1536 distinct compositions, then to the image-dependent number
+        of tiles that truly render differently — 1390 for the stock
+        ``Inside_A4.png``. Graphically identical tiles stay separate
+        when they resolve to a different collision.
 
         The sheet's conversion metadata describes the **packed**
         result (16 tiles per row, matching the other sheets' 768px
@@ -152,44 +162,106 @@ class SimpleConverter:
                 f"{sheet_info.width}x{sheet_info.height}px."
             )
 
+        source = Image.open(sheet_info.path).convert("RGBA")
+
+        try:
+            unique = list(
+                a4_unique_tiles(
+                    source,
+                    dedup_key=self._a4_dedup_key(tileset_name),
+                )
+            )
+        finally:
+            source.close()
+
         tiles: list[Tile] = []
 
-        for local_kind in range(A4_AUTOTILE_COUNT):
-            for shape in range(A4_SHAPES_PER_AUTOTILE):
-                index = local_kind * A4_SHAPES_PER_AUTOTILE + shape
-                column = local_kind % 8
-                row = local_kind // 8
+        for index, _quarters in unique:
+            local_kind = index // A4_SHAPES_PER_AUTOTILE
 
-                x = (index % A4_PACK_COLUMNS) * 48
-                y = (index // A4_PACK_COLUMNS) * 48
+            # Packed atlas position: insertion order on the 16-per-row
+            # grid (duplicated variants were already skipped).
+            slot = len(tiles)
+            x = (slot % A4_PACK_COLUMNS) * 48
+            y = (slot // A4_PACK_COLUMNS) * 48
 
-                tile = self._create_tile(
-                    tileset_name=tileset_name,
-                    sheet_type=SheetType.A4,
-                    index=index,
-                    column=column,
-                    row=row,
-                    x=x,
-                    y=y,
-                    width=48,
-                    height=48,
-                )
+            tile = self._create_tile(
+                tileset_name=tileset_name,
+                sheet_type=SheetType.A4,
+                index=index,
+                column=local_kind % 8,
+                row=local_kind // 8,
+                x=x,
+                y=y,
+                width=48,
+                height=48,
+            )
 
-                tiles.append(
-                    self._resolve_tile_properties(tile)
-                )
+            tiles.append(
+                self._resolve_tile_properties(tile)
+            )
+
+        pack_rows = math.ceil(len(tiles) / A4_PACK_COLUMNS)
 
         return Sheet(
             sheet_type=SheetType.A4,
             source_path=sheet_info.path,
             width=A4_PACK_WIDTH,
-            height=A4_PACK_HEIGHT,
+            height=pack_rows * 48,
             tile_width=48,
             tile_height=48,
             columns=A4_PACK_COLUMNS,
-            rows=A4_PACK_ROWS,
+            rows=pack_rows,
             tiles=tuple(tiles),
         )
+
+    def _a4_dedup_key(
+        self,
+        tileset_name: str,
+    ) -> Callable[[int, bytes], tuple[bytes, TileCollision]] | None:
+        """Build the duplicate-identity hook for the A4 pixel dedup.
+
+        Without a properties resolver, tiles are identified by their
+        pixel content alone. With one, two graphically identical tiles
+        are only merged when they also resolve to the same directional
+        collision: RPG Maker flags live on the engine Tile IDs, so two
+        autotile kinds can look exactly the same while allowing a
+        different passage.
+        """
+
+        if self._tile_properties_resolver is None:
+            return None
+
+        def dedup_key(
+            index: int,
+            signature: bytes,
+        ) -> tuple[bytes, TileCollision]:
+            tile = Tile(
+                ref=TileRef(
+                    tileset=tileset_name,
+                    sheet_type=SheetType.A4,
+                    index=index,
+                ),
+                column=0,
+                row=0,
+                x=0,
+                y=0,
+                width=48,
+                height=48,
+            )
+
+            properties = (
+                self._tile_properties_resolver.resolve(tile)
+            )
+
+            collision = tile_properties_to_collision(
+                properties,
+                tile_id=tile_to_tile_id(tile),
+            )
+
+            return signature, collision
+
+        return dedup_key
 
     def _sheet_tiles(
         self,

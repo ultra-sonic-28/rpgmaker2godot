@@ -1,6 +1,8 @@
+import math
 from pathlib import Path
 
 import pytest
+from PIL import Image
 
 from rpgmaker2godot.analysis.models import (
     AnalysisResult,
@@ -17,10 +19,15 @@ def make_sheet(
     sheet_type: SheetType,
     width: int,
     height: int,
+    path: Path | None = None,
 ) -> SheetInfo:
     return SheetInfo(
         sheet_type=sheet_type,
-        path=Path(f"{prefix}_{sheet_type.value}.png"),
+        path=(
+            path
+            if path is not None
+            else Path(f"{prefix}_{sheet_type.value}.png")
+        ),
         prefix=prefix,
         width=width,
         height=height,
@@ -40,6 +47,50 @@ def make_analysis(*sheets: SheetInfo) -> AnalysisResult:
         sheets=tuple(sheets),
         warnings=(),
     )
+
+
+def write_a4_sheet(
+    path: Path,
+    *,
+    uniform_band: tuple[int, int] | None = None,
+) -> None:
+    """Write a canonical 768x720 A4 sheet with injective quarters.
+
+    Every 24x24 quarter receives a colour derived from its (qx, qy)
+    position; the mapping is injective over the whole sheet, so no two
+    compositions can render identically and the pixel-level
+    deduplication behaves exactly like the composition-level one
+    (1536 tiles). ``uniform_band`` optionally paints the pixel rows
+    ``[start, end)`` with one flat colour: every autotile whose source
+    lies inside that band then composes identical tiles, which the
+    converter must merge.
+    """
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    image = Image.new("RGBA", (768, 720))
+
+    for y in range(0, 720, 24):
+        for x in range(0, 768, 24):
+            qx, qy = x // 24, y // 24
+
+            if (
+                uniform_band is not None
+                and uniform_band[0] <= y < uniform_band[1]
+            ):
+                color = (200, 200, 200, 255)
+            else:
+                color = (
+                    (qx * 37) % 256,
+                    (qy * 61) % 256,
+                    (qx + qy * 3) % 256,
+                    255,
+                )
+
+            image.paste(color, (x, y, x + 24, y + 24))
+
+    image.save(path)
+    image.close()
 
 
 def test_converts_single_sheet() -> None:
@@ -150,13 +201,18 @@ def test_converts_a5_dimensions() -> None:
     assert len(sheet.tiles) == 128
 
 
-def test_converts_a4_dimensions() -> None:
+def test_converts_a4_dimensions(tmp_path: Path) -> None:
+    source_path = tmp_path / "Inside_A4.png"
+
+    write_a4_sheet(source_path)
+
     analysis = make_analysis(
         make_sheet(
             "Inside",
             SheetType.A4,
             768,
             720,
+            path=source_path,
         )
     )
 
@@ -164,25 +220,77 @@ def test_converts_a4_dimensions() -> None:
 
     sheet = result.tilesets[0].sheets[0]
 
-    # The A4 sheet (768x720) holds 48 autotiles, each unfolded into its
-    # 48 connection variants: 48 * 48 = 2304 tiles.
-    assert len(sheet.tiles) == 48 * 48
+    # The A4 sheet (768x720) unfolds its 48 autotiles into 2304 raw
+    # shape variants, but the Wall Side table only holds 16 distinct
+    # shapes: the duplicates are dropped, leaving 1536 unique tiles
+    # (24 Wall Tops x 48 + 24 Wall Sides x 16).
+    assert len(sheet.tiles) == 24 * 48 + 24 * 16
 
     # The conversion metadata describes the packed atlas region.
     assert sheet.columns == 16
-    assert sheet.rows == 48 * 48 // 16
+    assert sheet.rows == 96
     assert sheet.width == 16 * 48
-    assert sheet.height == (48 * 48 // 16) * 48
+    assert sheet.height == 96 * 48
 
     # Every tile is a 48x48 ready-to-place autotile variant.
     assert all(tile.width == 48 and tile.height == 48 for tile in sheet.tiles)
 
 
-def test_a4_tile_ids_map_to_engine_ids() -> None:
-    """index = local_kind*48 + shape; ID = base(A4=5888) + index."""
+def test_a4_deduplicates_wall_side_shape_ids(tmp_path: Path) -> None:
+    """Wall Side shape IDs 16..47 repeat shapes 0..15 and are dropped.
+
+    RPG Maker reserves 48 shape IDs per autotile kind but the Wall Side
+    table cycles over 16 shapes: the duplicated variants compose the
+    exact same tile. The converter keeps the first occurrence (with its
+    engine ID) and packs the survivors sequentially on the 16-per-row
+    grid.
+    """
+
+    source_path = tmp_path / "Inside_A4.png"
+
+    write_a4_sheet(source_path)
 
     analysis = make_analysis(
-        make_sheet("Inside", SheetType.A4, 768, 720)
+        make_sheet("Inside", SheetType.A4, 768, 720, path=source_path)
+    )
+
+    sheet = SimpleConverter().convert(analysis).tilesets[0].sheets[0]
+
+    indexes = [tile.ref.index for tile in sheet.tiles]
+
+    # Kinds 0..7 are Wall Tops: their 48 shape IDs are all distinct.
+    first_side_start = 8 * 48
+    assert indexes[:first_side_start] == list(range(first_side_start))
+
+    # Kind 8 is a Wall Side: only its first 16 shape IDs are distinct,
+    # shape 16 composes the same tile as shape 0 and is dropped.
+    assert indexes[first_side_start : first_side_start + 16] == list(
+        range(first_side_start, first_side_start + 16)
+    )
+    assert first_side_start + 16 not in indexes
+
+    # Total: 24 Wall Tops x 48 + 24 Wall Sides x 16 unique shapes.
+    assert len(indexes) == 24 * 48 + 24 * 16
+
+    # Survivors occupy sequential packed slots (16 per row).
+    slots = {(tile.x // 48, tile.y // 48) for tile in sheet.tiles}
+    assert slots == {(slot % 16, slot // 16) for slot in range(len(indexes))}
+
+    # The engine autotile kind stays readable through column/row.
+    last = sheet.tiles[-1]
+    assert last.ref.index == 47 * 48 + 15
+    assert (last.column, last.row) == (47 % 8, 47 // 8)
+
+
+def test_a4_tile_ids_map_to_engine_ids(tmp_path: Path) -> None:
+    """index = local_kind*48 + shape; ID = base(A4=5888) + index."""
+
+    source_path = tmp_path / "Inside_A4.png"
+
+    write_a4_sheet(source_path)
+
+    analysis = make_analysis(
+        make_sheet("Inside", SheetType.A4, 768, 720, path=source_path)
     )
 
     sheet = SimpleConverter().convert(analysis).tilesets[0].sheets[0]
@@ -214,12 +322,116 @@ def test_a4_rejects_non_canonical_dimensions() -> None:
         SimpleConverter().convert(analysis)
 
 
-def test_groups_a4_before_a5() -> None:
+def test_a4_deduplicates_graphically_identical_tiles(
+    tmp_path: Path,
+) -> None:
+    """Tiles that render identically are packed only once.
+
+    A fully uniform A4 sheet makes every quarter identical: all 2304
+    raw shape variants compose the exact same 48x48 tile, so the whole
+    sheet collapses to a single packed tile (the first engine ID).
+    """
+
+    source_path = tmp_path / "Inside_A4.png"
+
+    write_a4_sheet(source_path, uniform_band=(0, 720))
+
+    sheet = (
+        SimpleConverter()
+        .convert(
+            make_analysis(
+                make_sheet(
+                    "Inside",
+                    SheetType.A4,
+                    768,
+                    720,
+                    path=source_path,
+                )
+            )
+        )
+        .tilesets[0]
+        .sheets[0]
+    )
+
+    assert len(sheet.tiles) == 1
+
+    only = sheet.tiles[0]
+
+    assert only.ref.index == 0
+    assert (only.x, only.y) == (0, 0)
+
+    assert sheet.rows == 1
+    assert sheet.height == 48
+
+
+def test_a4_pixel_dedup_merges_across_autotile_kinds(
+    tmp_path: Path,
+) -> None:
+    """Graphically identical tiles merge even across autotile kinds.
+
+    Kinds 8-15 are the Wall Sides of the first band (source rows
+    y=144..240). Painting that pixel band with one flat colour makes
+    every composition of those eight kinds render identically, so they
+    collapse to a single packed tile while all other autotiles keep
+    their full set of distinct shapes:
+
+        24 Wall Tops x 48 + 16 Wall Sides x 16 + 1 merged tile = 1409.
+    """
+
+    source_path = tmp_path / "Inside_A4.png"
+
+    write_a4_sheet(source_path, uniform_band=(144, 240))
+
+    sheet = (
+        SimpleConverter()
+        .convert(
+            make_analysis(
+                make_sheet(
+                    "Inside",
+                    SheetType.A4,
+                    768,
+                    720,
+                    path=source_path,
+                )
+            )
+        )
+        .tilesets[0]
+        .sheets[0]
+    )
+
+    indexes = [tile.ref.index for tile in sheet.tiles]
+
+    assert len(indexes) == 24 * 48 + 16 * 16 + 1
+
+    # The merged tile is the first Wall Side engine ID (kind 8, shape 0).
+    assert 8 * 48 in indexes
+
+    # No other Wall Side of the first band survives: every shape of
+    # kinds 8..15 rendered identically to (kind 8, shape 0).
+    assert 8 * 48 + 1 not in indexes
+    assert 15 * 48 + 15 not in indexes
+
+    # The Wall Sides of the other bands are untouched.
+    assert 24 * 48 + 15 in indexes
+    assert 40 * 48 + 15 in indexes
+
+    # Survivors still occupy sequential packed slots (16 per row).
+    slots = {(tile.x // 48, tile.y // 48) for tile in sheet.tiles}
+    assert slots == {(slot % 16, slot // 16) for slot in range(len(indexes))}
+
+    assert sheet.rows == math.ceil(len(indexes) / 16)
+
+
+def test_groups_a4_before_a5(tmp_path: Path) -> None:
     """A4 walls must be stacked beneath A5 ground and B-E overlays."""
+
+    a4_path = tmp_path / "Inside_A4.png"
+
+    write_a4_sheet(a4_path)
 
     analysis = make_analysis(
         make_sheet("Inside", SheetType.A5, 384, 768),
-        make_sheet("Inside", SheetType.A4, 768, 720),
+        make_sheet("Inside", SheetType.A4, 768, 720, path=a4_path),
         make_sheet("Inside", SheetType.B, 768, 768),
     )
 

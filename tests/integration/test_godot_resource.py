@@ -521,13 +521,13 @@ def test_generated_tileset_loads_collision_polygons_in_godot(
 def test_generated_a4_tileset_loads_in_godot(
     tmp_path: Path,
 ) -> None:
-    """The unfolded A4 tileset loads and exposes all 2304 tiles in Godot.
+    """The unfolded A4 tileset loads and exposes its unique tiles in Godot.
 
-    A single ``*_A4.png`` (768x720) sheet holds 48 autotiles, each
-    unfolded into its 48 connection shapes -> 2304 tiles of 48x48.
-    They are packed 16 per row, giving an atlas of 768x6912 (144 rows).
-    The generated ``.tres`` must load in Godot with every one of those
-    cells present.
+    A single ``*_A4.png`` (768x720) sheet holds 48 autotiles unfolded
+    into 2304 raw shape variants; the duplicated Wall Side shapes are
+    dropped, leaving 1536 unique tiles of 48x48. They are packed 16 per
+    row, giving an atlas of 768x4608 (96 rows). The generated ``.tres``
+    must load in Godot with every one of those cells present.
     """
 
     godot = find_godot()
@@ -547,11 +547,30 @@ def test_generated_a4_tileset_loads_in_godot(
         exist_ok=True,
     )
 
-    create_sheet(
-        input_directory,
-        "Inside_A4.png",
-        size=(768, 720),
-    )
+    # Distinct 24x24 quarters: the pixel-level deduplication keeps all
+    # 1536 unfolded tiles, whose full atlas must load in Godot.
+    input_directory.mkdir(parents=True, exist_ok=True)
+
+    a4_path = input_directory / "Inside_A4.png"
+
+    a4_sheet = Image.new("RGBA", (768, 720))
+
+    for y in range(0, 720, 24):
+        for x in range(0, 768, 24):
+            qx, qy = x // 24, y // 24
+
+            a4_sheet.paste(
+                (
+                    (qx * 37) % 256,
+                    (qy * 61) % 256,
+                    (qx + qy * 3) % 256,
+                    255,
+                ),
+                (x, y, x + 24, y + 24),
+            )
+
+    a4_sheet.save(a4_path)
+    a4_sheet.close()
 
     analysis = TilesetDetector().analyze(
         input_directory,
@@ -580,9 +599,9 @@ def test_generated_a4_tileset_loads_in_godot(
 
     script_path = write_validation_script(
         project_directory,
-        expected_atlas_size=(768, 6912),
+        expected_atlas_size=(768, 4608),
         expected_columns=16,
-        expected_rows=144,
+        expected_rows=96,
         validate_all_cells=True,
     )
 

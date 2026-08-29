@@ -98,7 +98,9 @@ class AtlasBuilder:
         quarters can be recovered without extra state. The atlas
         position comes from the tile's packed ``x``/``y`` (set by the
         converter); the source piece is whatever the engine's shape
-        table dictates.
+        table dictates. Only distinct tiles reach this stage: the
+        converter already dropped the duplicated Wall Side shape IDs
+        and every graphically identical variant.
         """
 
         local_kind = tile.ref.index // 48

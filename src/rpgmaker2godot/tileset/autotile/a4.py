@@ -20,7 +20,11 @@ The Wall Side source occupies a 96x96 region and the Wall Top source a
 96x144 region, stacked per column (720px tall in total).
 """
 
-from .composer import QUARTER_SIZE
+from collections.abc import Callable, Hashable, Iterator
+
+from PIL import Image
+
+from .composer import QUARTER_SIZE, compose_autotile
 from .shapes import FLOOR_AUTOTILE_TABLE, WALL_AUTOTILE_TABLE
 
 # One autotile occupies a 96px-wide source slot, exactly two tiles wide.
@@ -44,12 +48,11 @@ A4_SHAPES_PER_AUTOTILE = 48
 
 # Packing of the unfolded A4 tiles inside their atlas region: a 16 tile
 # per row grid, so each row is 16 * 48 = 768 px wide (matching the
-# width of the other sheets). 48 autotiles * 48 shapes = 2304 tiles,
-# packed as 144 rows.
+# width of the other sheets). The number of rows follows the number of
+# *graphically distinct* tiles (see a4_unique_tiles), not the raw
+# 2304 engine IDs nor the 1536 distinct compositions.
 A4_PACK_COLUMNS = 16
 A4_PACK_WIDTH = A4_PACK_COLUMNS * 48
-A4_PACK_ROWS = (A4_AUTOTILE_COUNT * A4_SHAPES_PER_AUTOTILE) // A4_PACK_COLUMNS
-A4_PACK_HEIGHT = A4_PACK_ROWS * 48
 
 
 def a4_source_region(
@@ -119,18 +122,129 @@ def a4_shape_quarters(
     )
 
 
+def a4_unique_compositions() -> Iterator[
+    tuple[int, tuple[tuple[int, int, int, int], ...]]
+]:
+    """Yield ``(index, quarters)`` for each **distinct** A4 composition.
+
+    RPG Maker reserves 48 shape IDs per autotile kind, but the Wall
+    Side table only holds 16 shapes (cycled with ``shape % 16``): 32 of
+    the 48 unfolded variants of every Wall Side compose the exact same
+    tile. This generator walks the (kind, shape) pairs in engine ID
+    order and yields only the first occurrence of each distinct
+    quarter composition:
+
+    * 24 Wall Tops x 48 distinct shapes;
+    * 24 Wall Sides x 16 distinct shapes;
+
+    i.e. the 48 x 48 = 2304 raw variants reduce to 1536 unique 48x48
+    tiles. ``index`` is the RPG Maker A4 offset (``local_kind * 48 +
+    shape``) of the first occurrence and ``quarters`` the
+    ``a4_shape_quarters`` tuple identifying the composed tile
+    (absolute source coordinates, draw order).
+    """
+
+    seen: set[tuple[tuple[int, int, int, int], ...]] = set()
+
+    for local_kind in range(A4_AUTOTILE_COUNT):
+        for shape in range(A4_SHAPES_PER_AUTOTILE):
+            quarters = a4_shape_quarters(local_kind, shape)
+
+            if quarters in seen:
+                continue
+
+            seen.add(quarters)
+
+            yield local_kind * A4_SHAPES_PER_AUTOTILE + shape, quarters
+
+
+def a4_unique_tiles(
+    source: Image.Image,
+    *,
+    dedup_key: Callable[[int, bytes], Hashable] | None = None,
+) -> Iterator[tuple[int, tuple[tuple[int, int, int, int], ...]]]:
+    """Yield ``(index, quarters)`` for each **graphically distinct** tile.
+
+    Walks :func:`a4_unique_compositions` in engine ID order, composes
+    every candidate into its final 48x48 image and keeps only the first
+    occurrence of each distinct pixel content (exact, byte-for-byte
+    comparison of the composed RGBA pixels). Two different compositions
+    can still render identically when the source quarters they select
+    are visually the same — uniform fills are common in stock A4
+    sheets: for the stock ``Inside_A4.png`` this pass shrinks the 1536
+    distinct compositions down to 1390 distinct tiles.
+
+    Args:
+        source: The RGBA ``*_A4.png`` sheet image (768x720).
+        dedup_key: Optional hook returning the identity used to detect
+            duplicates. It receives ``(index, pixel_signature)`` where
+            ``pixel_signature`` is the raw RGBA byte content of the
+            composed tile. Defaults to the pixel signature itself. The
+            converter passes a hook that also discriminates on the
+            resolved collision so that graphically identical tiles with
+            *different* passage flags stay separate.
+
+    Yields:
+        ``(index, quarters)`` pairs where ``index`` is the RPG Maker A4
+        offset (``local_kind * 48 + shape``) of the first occurrence and
+        ``quarters`` the :func:`a4_shape_quarters` tuple identifying the
+        composed tile (absolute source coordinates, draw order).
+    """
+
+    seen: set[Hashable] = set()
+
+    for index, quarters in a4_unique_compositions():
+        local_kind, shape = divmod(index, A4_SHAPES_PER_AUTOTILE)
+
+        source_x, source_y, is_wall_side = a4_source_region(local_kind)
+
+        table = WALL_AUTOTILE_TABLE if is_wall_side else FLOOR_AUTOTILE_TABLE
+
+        tile = compose_autotile(
+            source,
+            source_x=source_x,
+            source_y=source_y,
+            shape=table[shape % len(table)],
+        )
+
+        signature = tile.tobytes()
+        tile.close()
+
+        key = (
+            dedup_key(index, signature)
+            if dedup_key is not None
+            else signature
+        )
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+
+        yield index, quarters
+
+
+# Number of distinct A4 quarter compositions: the 2304 raw engine IDs
+# minus the Wall Side shape repetitions (48 IDs per kind but only 16
+# distinct shapes). Graphically identical tiles are merged later by
+# a4_unique_tiles, so the packed tile count of a converted sheet is
+# image-dependent and always <= this value.
+A4_UNIQUE_COMPOSITION_COUNT = sum(1 for _ in a4_unique_compositions())
+
+
 __all__ = [
     "A4_AUTOTILE_COUNT",
     "A4_COLUMNS",
     "A4_HEIGHT",
     "A4_PACK_COLUMNS",
-    "A4_PACK_HEIGHT",
-    "A4_PACK_ROWS",
     "A4_PACK_WIDTH",
     "A4_SHAPES_PER_AUTOTILE",
     "A4_SLOT_HEIGHT",
     "A4_SLOT_WIDTH",
+    "A4_UNIQUE_COMPOSITION_COUNT",
     "A4_WIDTH",
     "a4_shape_quarters",
     "a4_source_region",
+    "a4_unique_compositions",
+    "a4_unique_tiles",
 ]

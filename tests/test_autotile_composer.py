@@ -10,7 +10,7 @@ from rpgmaker2godot.tileset.autotile import (
     unfold_floor_autotile,
     unfold_wall_autotile,
 )
-from rpgmaker2godot.tileset.autotile.a4 import a4_source_region
+from rpgmaker2godot.tileset.autotile.a4 import a4_source_region, a4_unique_tiles
 
 
 def _quarter_colour(quarter_x: int, quarter_y: int) -> tuple[int, int, int, int]:
@@ -169,3 +169,127 @@ def test_a4_source_region_maps_slots() -> None:
 
     # Last autotile (slot 47): tx=7, row5 -> Wall Side at (7*96, 13*48).
     assert a4_source_region(47) == (672, 624, True)
+
+
+def test_a4_unique_compositions_deduplicates_wall_sides() -> None:
+    """The 2304 raw A4 shape IDs reduce to 1536 distinct compositions."""
+
+    from collections import Counter
+
+    from rpgmaker2godot.tileset.autotile.a4 import (
+        A4_SHAPES_PER_AUTOTILE,
+        A4_UNIQUE_COMPOSITION_COUNT,
+        a4_shape_quarters,
+        a4_unique_compositions,
+    )
+
+    unique = list(a4_unique_compositions())
+
+    assert A4_UNIQUE_COMPOSITION_COUNT == 1536
+    assert len(unique) == 1536
+
+    # First occurrences, emitted in ascending engine ID order.
+    indexes = [index for index, _quarters in unique]
+    assert indexes == sorted(indexes)
+
+    # Each entry matches its (kind, shape) decoding.
+    for index, quarters in unique:
+        kind, shape = divmod(index, A4_SHAPES_PER_AUTOTILE)
+        assert quarters == a4_shape_quarters(kind, shape)
+
+    # No composition is emitted twice.
+    compositions = {quarters for _index, quarters in unique}
+    assert len(compositions) == len(unique)
+
+    # Every kind contributes either its 48 Wall Top shapes or its 16
+    # Wall Side shapes.
+    per_kind = Counter(
+        index // A4_SHAPES_PER_AUTOTILE for index, _quarters in unique
+    )
+    assert sorted(set(per_kind.values())) == [16, 48]
+    wall_top_kinds = sum(1 for count in per_kind.values() if count == 48)
+    wall_side_kinds = sum(1 for count in per_kind.values() if count == 16)
+    assert (wall_top_kinds, wall_side_kinds) == (24, 24)
+
+
+def test_a4_unique_tiles_merges_graphically_identical_tiles() -> None:
+    """Compositions that render identically collapse to one tile.
+
+    A fully uniform A4 sheet makes every 24x24 quarter identical: all
+    2304 raw variants compose the exact same 48x48 tile, so a single
+    entry survives — the first engine ID (kind 0, shape 0).
+    """
+
+    from rpgmaker2godot.tileset.autotile.a4 import a4_shape_quarters
+
+    source = Image.new("RGBA", (768, 720), (90, 90, 90, 255))
+
+    unique = list(a4_unique_tiles(source))
+
+    assert len(unique) == 1
+
+    index, quarters = unique[0]
+
+    assert index == 0
+    assert quarters == a4_shape_quarters(0, 0)
+
+    source.close()
+
+
+def test_a4_unique_tiles_keeps_all_distinct_compositions() -> None:
+    """Injective quarters: pixel dedup behaves like composition dedup.
+
+    When every 24x24 quarter of the sheet is visually unique, two
+    compositions can only render identically if they select the same
+    quarters — already removed by a4_unique_compositions. The pixel
+    pass must therefore keep exactly the same 1536 entries.
+    """
+
+    from rpgmaker2godot.tileset.autotile.a4 import a4_unique_compositions
+
+    source = Image.new("RGBA", (768, 720))
+
+    for y in range(0, 720, 24):
+        for x in range(0, 768, 24):
+            qx, qy = x // 24, y // 24
+
+            source.paste(
+                (
+                    (qx * 37) % 256,
+                    (qy * 61) % 256,
+                    (qx + qy * 3) % 256,
+                    255,
+                ),
+                (x, y, x + 24, y + 24),
+            )
+
+    unique = list(a4_unique_tiles(source))
+
+    assert len(unique) == 1536
+    assert [index for index, _ in unique] == [
+        index for index, _ in a4_unique_compositions()
+    ]
+
+    source.close()
+
+
+def test_a4_unique_tiles_accepts_custom_dedup_key() -> None:
+    """A custom key replaces the pixel signature as the identity."""
+
+    from rpgmaker2godot.tileset.autotile.a4 import (
+        A4_UNIQUE_COMPOSITION_COUNT,
+    )
+
+    source = Image.new("RGBA", (768, 720), (90, 90, 90, 255))
+
+    unique = list(
+        a4_unique_tiles(
+            source,
+            dedup_key=lambda index, signature: index,
+        )
+    )
+
+    # Keying by engine index keeps every composition alive.
+    assert len(unique) == A4_UNIQUE_COMPOSITION_COUNT
+
+    source.close()

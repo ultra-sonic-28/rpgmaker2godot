@@ -71,7 +71,8 @@ src/rpgmaker2godot/
 │       ├── shapes.py               # FLOOR_AUTOTILE_TABLE (48) + WALL_AUTOTILE_TABLE (16), verbatim
 │       ├── composer.py             # compose 48x48 tiles from 24x24 quarters (+ unfold helpers)
 │       └── a4.py                   # A4 sheet geometry + the 48 autotiles' source regions and
-│       │                           #   shape quarters (canonical 768x720 → packed 16x144 grid)
+│       │                           #   shape quarters; unique compositions (2304 raw → 1536) then
+│       │                           #   pixel-level dedup of graphically identical tiles
 ├── model/                          # Shared internal model (immutable)
 │   ├── enums.py                    # SheetType enum + its canonical stacking order (A4, A5, B, C, D, E)
 │   ├── sheet.py                    # Sheet — one source tilesheet together with its extracted tiles
@@ -162,7 +163,7 @@ Reference for the sheet format handled by the pipeline, as defined by RPG Maker 
 | A1 | 768×576 | 16 autotiles | 768 | animated water and waterfalls |
 | A2 | 768×576 | 32 autotiles | 1536 | ground autotiles (grass, paths…) |
 | A3 | 768×576 | 32 autotiles | 1536 | building autotiles (roofs, walls) |
-| A4 | 768×720 | 48 autotiles → 2304 unfolded tiles | 2304 | interior walls & ceilings (houses, caves, castles, dungeons) |
+| A4 | 768×720 | 48 autotiles → 1536 compositions → only graphically distinct tiles kept (1390 for the stock Inside_A4) | 1536 | interior walls & ceilings (houses, caves, castles, dungeons) |
 | A5 | 384×768 | 128 normal tiles (8×16) | 512 (128 used) | plain ground without autotile |
 | B–E | 768×768 each | 256 normal tiles (16×16) each | 256 each | ordinary tiles, four overlay layers (B lowest → E highest) |
 
@@ -182,7 +183,7 @@ Wall Top row over one Wall Side row:
   y = 624..720    Wall Side ×8
 ```
 
-That gives 24 Wall Tops + 24 Wall Sides = 48 autotiles (`TILE_ID_A4 = 5888`; `kind % 16 < 8` ⇒ Wall Top). Each kind reserves 48 shape IDs — Wall Sides cycle through their 16 shapes — hence the **2304 ready-to-place 48×48 tiles** the converter unfolds per A4 sheet.
+That gives 24 Wall Tops + 24 Wall Sides = 48 autotiles (`TILE_ID_A4 = 5888`; `kind % 16 < 8` ⇒ Wall Top). Each kind reserves 48 shape IDs, but Wall Sides cycle through their 16 shapes only: the 2304 raw variants contain duplicates, and the converter unfolds the **1536 unique ready-to-place 48×48 tiles** (24 Wall Tops × 48 + 24 Wall Sides × 16), dropping the redundant ones.
 
 **What this tool converts:** `*_A4.png` (unfolded), `*_A5.png` and `*_B/C/D/E.png`. Sheets A1–A3 are not converted yet.
 
@@ -203,7 +204,7 @@ flowchart LR
     H --> I[".tres"]
 
     A -.->|"directory scan<br/>A4/A5/B/C/D/E.png regex"| A
-    B -.->|"Tile creation — TileRef + coordinates<br/>A4: 48 kinds × 48 shapes = 2304 unfolded tiles"| B
+    B -.->|"Tile creation — TileRef + coordinates<br/>A4: 2304 raw variants → 1536 unique unfolded tiles"| B
     E -.->|"A4 tiles composed from four 24×24 quarters<br/>(AtlasQuarter, transparent canvas)"| E
 ```
 
@@ -254,7 +255,7 @@ This prefix grouping is the default **merging** behaviour: every sheet sharing a
 
 For every sheet, one `Tile` is created per cell — except A4, which is *unfolded*:
 
-* **A4 unfolding** — the sheet must have the canonical 768×720 dimensions, then the converter emits one 48×48 tile per (autotile kind, shape) pair: 48 × 48 = **2304 tiles**, encoded as `TileRef.index = kind × 48 + shape` and laid out on the packed 16×144 grid the atlas step consumes;
+* **A4 unfolding** — the sheet must have the canonical 768×720 dimensions, then the converter emits one 48×48 tile per **distinct** (autotile kind, shape) composition: the Wall Side table only holds 16 of the 48 reserved shape IDs, so the 2304 raw variants reduce to **1536 unique tiles** (24 Wall Tops × 48 + 24 Wall Sides × 16), each encoded as `TileRef.index = kind × 48 + shape` (first occurrence) and laid out on the packed 16×96 grid the atlas step consumes;
 * a `TileRef` (tileset name, sheet type, zero-based column-major index) plus its coordinates;
 * **collision resolution** — when a `TilePropertiesResolver` is configured (i.e. a `Tilesets.json` is present), the tile's `TileRef` is mapped to the RPG Maker global Tile ID via `tile_to_tile_id()` (`B=0, C=256, D=512, E=768, A5=1536, A4=5888`, then row/column offset; for A4 the offset is `kind × 48 + shape`), the flags are decoded into `TileProperties`, and `tile_properties_to_collision()` converts the directional passage permissions into a Godot-agnostic `TileCollision`. Without a resolver the tile is kept collisionless, preserving the original behaviour.
 
@@ -269,7 +270,7 @@ sequenceDiagram
     C-->>C: group sheets by prefix → Tileset(s),<br/>ordered by SheetType.order
     loop For each sheet
         alt A4 sheet (autotile unfolding)
-            Note over C: 48 kinds × 48 shapes = 2304 tiles<br/>TileRef.index = kind × 48 + shape
+            Note over C: 2304 raw variants → 1536 unique tiles<br/>TileRef.index = kind × 48 + shape (first occurrence)
         else other sheet
             Note over C: one Tile per cell (column, row, index)
         end

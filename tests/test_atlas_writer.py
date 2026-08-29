@@ -220,7 +220,7 @@ def test_writes_a4_quarter_composed_tile(
         for p in atlas.placements
         if p.tile.sheet_type == SheetType.A4
     ]
-    assert len(a4_placements) == 48 * 48
+    assert len(a4_placements) == 24 * 48 + 24 * 16
     placement0 = a4_placements[0]
 
     # Atlas position of the first A4 tile (in the packed region).

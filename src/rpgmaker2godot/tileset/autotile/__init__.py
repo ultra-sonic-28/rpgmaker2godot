@@ -1,4 +1,4 @@
-from .a4 import a4_source_region
+from .a4 import a4_source_region, a4_unique_tiles
 from .composer import (
     QUARTER_SIZE,
     TILE_SIZE,
@@ -20,6 +20,7 @@ __all__ = [
     "WALL_AUTOTILE_TABLE",
     "AutotileShape",
     "a4_source_region",
+    "a4_unique_tiles",
     "compose_autotile",
     "unfold_autotile",
     "unfold_floor_autotile",

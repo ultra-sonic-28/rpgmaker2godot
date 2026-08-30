@@ -638,3 +638,137 @@ def test_generated_a4_tileset_loads_in_godot(
         f"STDOUT:\n{result.stdout}\n\n"
         f"STDERR:\n{result.stderr}"
     )
+
+
+@pytest.mark.integration
+def test_generated_a4_tileset_terrains_load_in_godot(
+    tmp_path: Path,
+) -> None:
+    """The A4 tileset exposes one terrain set per material part.
+
+    With every 24x24 quarter drawn, all 48 kinds are used: 24 wall tops
+    (MATCH_CORNERS_AND_SIDES) and 24 wall sides (MATCH_SIDES), i.e. 48
+    terrain sets. Cell (0, 0) holds kind 0, shape 0 — a fully
+    surrounded Wall Top expecting the terrain on all eight peering
+    directions.
+    """
+
+    godot = find_godot()
+
+    if godot is None:
+        pytest.skip(
+            "Godot executable not available. "
+            "Set the GODOT environment variable."
+        )
+
+    input_directory = tmp_path / "tilesets"
+    project_directory = tmp_path / "godot"
+    generated_directory = project_directory / "generated"
+
+    generated_directory.mkdir(parents=True, exist_ok=True)
+
+    # Distinct 24x24 quarters: every autotile kind is used.
+    input_directory.mkdir(parents=True, exist_ok=True)
+
+    a4_path = input_directory / "Inside_A4.png"
+
+    a4_sheet = Image.new("RGBA", (768, 720))
+
+    for y in range(0, 720, 24):
+        for x in range(0, 768, 24):
+            qx, qy = x // 24, y // 24
+
+            a4_sheet.paste(
+                (
+                    (qx * 37) % 256,
+                    (qy * 61) % 256,
+                    (qx + qy * 3) % 256,
+                    255,
+                ),
+                (x, y, x + 24, y + 24),
+            )
+
+    a4_sheet.save(a4_path)
+    a4_sheet.close()
+
+    analysis = TilesetDetector().analyze(input_directory)
+
+    conversion = SimpleConverter().convert(analysis)
+
+    SimpleExporter(
+        godot_project_root=project_directory,
+    ).export(
+        conversion,
+        generated_directory,
+    )
+
+    write_project(project_directory)
+
+    script_path = write_validation_script(
+        project_directory,
+        expected_atlas_size=(768, 4608),
+        expected_columns=16,
+        expected_rows=96,
+        validate_all_cells=False,
+        expected_terrain_set_count=48,
+        expected_terrain_modes=(
+            (0, 0),
+            (1, 2),
+        ),
+        expected_terrain_names=(
+            (0, "Wall top 1"),
+            (1, "Wall side 1"),
+        ),
+        expected_cell_terrains=(
+            ((0, 0), 0, 0),
+        ),
+        expected_cell_peering_bits=(
+            (
+                (0, 0),
+                (
+                    ("right_side", 0),
+                    ("bottom_right_corner", 0),
+                    ("bottom_side", 0),
+                    ("bottom_left_corner", 0),
+                    ("left_side", 0),
+                    ("top_left_corner", 0),
+                    ("top_side", 0),
+                    ("top_right_corner", 0),
+                ),
+            ),
+        ),
+    )
+
+    subprocess.run(
+        [
+            godot,
+            "--headless",
+            "--path",
+            str(project_directory),
+            "--editor",
+            "--quit",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    result = subprocess.run(
+        [
+            godot,
+            "--headless",
+            "--path",
+            str(project_directory),
+            "--script",
+            str(script_path.name),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, (
+        "Godot failed to validate the A4 terrains.\n\n"
+        f"STDOUT:\n{result.stdout}\n\n"
+        f"STDERR:\n{result.stderr}"
+    )

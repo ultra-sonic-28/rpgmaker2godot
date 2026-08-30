@@ -52,6 +52,24 @@ class GodotResourceSerializer:
                 f"{tile.column}:{tile.row}/0 = 0"
             )
 
+            if tile.terrain is not None:
+                lines.append(
+                    f"{tile.column}:{tile.row}/0/terrain_set = "
+                    f"{tile.terrain.set_index}"
+                )
+
+                lines.append(
+                    f"{tile.column}:{tile.row}/0/terrain = "
+                    f"{tile.terrain.terrain_index}"
+                )
+
+                for bit_name, bit_terrain in tile.terrain.peering_bits:
+                    lines.append(
+                        f"{tile.column}:{tile.row}/0/"
+                        f"terrains_peering_bit/{bit_name} = "
+                        f"{bit_terrain}"
+                    )
+
             if tile.collision is not None:
                 for polygon_index, polygon in enumerate(
                     tile.collision.polygons,
@@ -70,6 +88,27 @@ class GodotResourceSerializer:
             "tile_size = "
             f"Vector2i({resource.tile_width}, {resource.tile_height})"
         )
+
+        for index, terrain_set in enumerate(resource.terrain_sets):
+            lines.append(
+                f"terrain_set_{index}/mode = {terrain_set.mode}"
+            )
+
+            for terrain_index, terrain in enumerate(terrain_set.terrains):
+                lines.append(
+                    f"terrain_set_{index}/terrain_{terrain_index}/name = "
+                    f'"{terrain.name}"'
+                )
+
+                red, green, blue = terrain.color
+
+                lines.append(
+                    f"terrain_set_{index}/terrain_{terrain_index}/color = "
+                    f"Color("
+                    f"{_format_coordinate(red)}, "
+                    f"{_format_coordinate(green)}, "
+                    f"{_format_coordinate(blue)}, 1)"
+                )
 
         if resource.has_physics_layer:
             lines.append(

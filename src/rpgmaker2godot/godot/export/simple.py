@@ -5,6 +5,7 @@ from rpgmaker2godot.atlas.writer import AtlasWriter
 from rpgmaker2godot.godot.atlas.atlas_mapper import GodotAtlasMapper
 from rpgmaker2godot.godot.resource.resource_writer import GodotResourceWriter
 from rpgmaker2godot.godot.tileset.tileset_builder import GodotTileSetBuilder
+from rpgmaker2godot.godot.terrain.terrain_builder import GodotTerrainBuilder
 from rpgmaker2godot.model.tileset import ConversionResult
 
 
@@ -19,6 +20,8 @@ class SimpleExporter:
         godot_tileset_builder: GodotTileSetBuilder | None = None,
         godot_resource_writer: GodotResourceWriter | None = None,
         godot_project_root: Path | None = None,
+        terrains: bool = True,
+        godot_terrain_builder: GodotTerrainBuilder | None = None,
     ) -> None:
         self._atlas_builder = (
             atlas_builder
@@ -52,6 +55,14 @@ class SimpleExporter:
 
         self._godot_project_root = godot_project_root
 
+        self._terrains = terrains
+
+        self._godot_terrain_builder = (
+            godot_terrain_builder
+            if godot_terrain_builder is not None
+            else GodotTerrainBuilder()
+        )
+
     def export(
         self,
         conversion: ConversionResult,
@@ -83,6 +94,15 @@ class SimpleExporter:
                 atlas_path,
             )
 
+            terrain_plan = (
+                self._godot_terrain_builder.build(
+                    tileset,
+                    godot_tileset,
+                )
+                if self._terrains
+                else None
+            )
+
             resource_path = (
                 output_directory / f"{tileset.name}.tres"
             )
@@ -100,6 +120,7 @@ class SimpleExporter:
                 godot_tileset,
                 resource_path,
                 godot_texture_path,
+                terrain_plan=terrain_plan,
             )
 
             generated_paths.extend(

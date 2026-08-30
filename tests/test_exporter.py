@@ -55,7 +55,7 @@ class FakeGodotResourceWriter:
     def __init__(self) -> None:
         self.calls = []
 
-    def write(self, tileset, output_path, texture_path):
+    def write(self, tileset, output_path, texture_path, terrain_plan=None):
         self.calls.append(
             (
                 tileset,
@@ -329,12 +329,14 @@ def test_exports_each_tileset(
     godot_tileset_builder = FakeGodotTileSetBuilder()
     godot_resource_writer = FakeGodotResourceWriter()
 
+    # The fake Godot tileset cannot feed the terrain builder.
     exporter = SimpleExporter(
         atlas_builder=builder,
         atlas_writer=writer,
         godot_atlas_mapper=godot_atlas_mapper,
         godot_tileset_builder=godot_tileset_builder,
         godot_resource_writer=godot_resource_writer,
+        terrains=False,
     )
 
     output_directory = tmp_path / "output"

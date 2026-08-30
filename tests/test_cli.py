@@ -487,7 +487,7 @@ def test_missing_arguments_show_banner_then_usage_panel(
 
     # The usage failure follows, rendered inside a warning frame.
     assert (
-        "usage: rpgmaker2godot [-h] [--simple] [--no-merge] [--tolerance TOLERANCE] input output"
+        "usage: rpgmaker2godot [-h] [--simple] [--no-merge] [--tolerance TOLERANCE] [--no-terrains] input output"
         in output
     )
     assert (
@@ -718,3 +718,55 @@ def test_negative_tolerance_reports_usage(
 
     assert exit_code == 2
     assert "--tolerance must be >= 0." in flatten(captured.out)
+
+
+def test_no_terrains_flag_skips_terrain_generation(
+    tmp_path: Path,
+) -> None:
+    """--no-terrains omits the terrain metadata from the .tres."""
+
+    input_directory = tmp_path / "tilesets"
+
+    create_sheet(
+        input_directory,
+        "Inside_A4.png",
+        size=(768, 720),
+    )
+
+    default_exit = main(
+        [
+            "--simple",
+            "--no-merge",
+            str(input_directory),
+            str(tmp_path / "default"),
+        ]
+    )
+
+    assert default_exit == 0
+
+    default_content = (
+        tmp_path / "default" / "Inside_A4.tres"
+    ).read_text(encoding="utf-8")
+
+    assert "terrain_set_0/mode = 0" in default_content
+    assert 'terrain_set_0/terrain_0/name = "Wall top 1"' in default_content
+    assert "0:0/0/terrains_peering_bit/" in default_content
+
+    skipped_exit = main(
+        [
+            "--simple",
+            "--no-merge",
+            "--no-terrains",
+            str(input_directory),
+            str(tmp_path / "skipped"),
+        ]
+    )
+
+    assert skipped_exit == 0
+
+    skipped_content = (
+        tmp_path / "skipped" / "Inside_A4.tres"
+    ).read_text(encoding="utf-8")
+
+    assert "terrain_set_0/mode" not in skipped_content
+    assert "terrains_peering_bit" not in skipped_content

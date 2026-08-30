@@ -35,11 +35,13 @@ class GodotResourceWriter:
         tileset: GodotTileSet,
         output_path: Path,
         texture_path: Path,
+        terrain_plan=None,
     ) -> None:
         resource = self._build_resource(
             tileset,
             output_path,
             texture_path,
+            terrain_plan,
         )
 
         content = self._serializer.serialize(resource)
@@ -59,6 +61,7 @@ class GodotResourceWriter:
         tileset: GodotTileSet,
         output_path: Path,
         texture_path: Path,
+        terrain_plan=None,
     ) -> GodotTileSetResource:
         if len(tileset.atlas_sources) != 1:
             raise ValueError(
@@ -84,6 +87,7 @@ class GodotResourceWriter:
             source,
             resource_id=atlas_resource_id,
             texture_resource_id=texture_resource_id,
+            terrain_plan=terrain_plan,
         )
 
         has_physics_layer = any(
@@ -97,6 +101,9 @@ class GodotResourceWriter:
             texture=texture,
             atlas_source=atlas,
             has_physics_layer=has_physics_layer,
+            terrain_sets=(
+                terrain_plan.terrain_sets if terrain_plan else ()
+            ),
         )
 
     @staticmethod

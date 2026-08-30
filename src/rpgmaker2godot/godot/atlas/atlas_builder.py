@@ -1,4 +1,8 @@
-from rpgmaker2godot.godot.model import GodotAtlasSource, GodotAtlasTileResource
+from rpgmaker2godot.godot.model import (
+    GodotAtlasSource,
+    GodotAtlasTileResource,
+    GodotTerrainPlan,
+)
 from rpgmaker2godot.godot.resource.resource import GodotAtlasSourceResource
 
 
@@ -11,6 +15,7 @@ class GodotAtlasSourceBuilder:
         *,
         resource_id: str,
         texture_resource_id: str,
+        terrain_plan: GodotTerrainPlan | None = None,
     ) -> GodotAtlasSourceResource:
         tiles = tuple(
             GodotAtlasTileResource(
@@ -25,6 +30,11 @@ class GodotAtlasSourceBuilder:
                     source.tile_height,
                 ),
                 collision=tile.collision,
+                terrain=(
+                    terrain_plan.tile_terrains.get(tile.ref)
+                    if terrain_plan is not None
+                    else None
+                ),
             )
             for tile in source.tiles
         )

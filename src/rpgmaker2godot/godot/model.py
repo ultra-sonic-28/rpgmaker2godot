@@ -63,6 +63,41 @@ class GodotTileSet:
 
 
 @dataclass(frozen=True)
+class GodotTerrain:
+    """One terrain of a terrain set (a paintable "material")."""
+
+    name: str
+    color: tuple[float, float, float]
+
+
+@dataclass(frozen=True)
+class GodotTerrainSet:
+    """A terrain set: a matching mode plus its terrains."""
+
+    mode: int
+    terrains: tuple[GodotTerrain, ...]
+
+
+@dataclass(frozen=True)
+class GodotTileTerrain:
+    """Terrain assignment of one atlas tile."""
+
+    set_index: int
+    terrain_index: int
+    # (peering_bit_name, terrain_index) pairs; only connected directions
+    # are listed — the others stay -1 (Godot's default).
+    peering_bits: tuple[tuple[str, int], ...]
+
+
+@dataclass(frozen=True)
+class GodotTerrainPlan:
+    """Terrain metadata attached to a generated TileSet."""
+
+    terrain_sets: tuple[GodotTerrainSet, ...]
+    tile_terrains: dict[TileRef, GodotTileTerrain]
+
+
+@dataclass(frozen=True)
 class GodotAtlasTileResource:
     """Serialized representation of a TileSetAtlasSource cell."""
 
@@ -72,6 +107,8 @@ class GodotAtlasTileResource:
     height: int = 1
 
     collision: GodotTileCollision | None = None
+
+    terrain: GodotTileTerrain | None = None
 
     def __post_init__(self) -> None:
         if self.column < 0:

@@ -81,6 +81,17 @@ def write_validation_script(
         tuple[int, int],
         ...,
     ] | None = None,
+    expected_terrain_set_count: int | None = None,
+    expected_terrain_modes: tuple[tuple[int, int], ...] | None = None,
+    expected_terrain_names: tuple[tuple[int, str], ...] | None = None,
+    expected_cell_terrains: tuple[
+        tuple[tuple[int, int], int, int],
+        ...,
+    ] | None = None,
+    expected_cell_peering_bits: tuple[
+        tuple[tuple[int, int], tuple[tuple[str, int], ...]],
+        ...,
+    ] | None = None,
 ) -> Path:
     script_path = project_directory / "validate.gd"
 
@@ -302,6 +313,116 @@ def write_validation_script(
 {free_calls}
 """
 
+    terrain_checks = ""
+
+    if expected_terrain_set_count is not None:
+        terrain_checks += f"""
+    # -------------------------------------------------------------------------
+    # Validate the terrain set count.
+    # -------------------------------------------------------------------------
+    if tileset.get_terrain_sets_count() != {expected_terrain_set_count}:
+        fail(
+            "Unexpected terrain set count: %d"
+            % tileset.get_terrain_sets_count()
+        )
+        return
+"""
+
+    if expected_terrain_modes is not None:
+        for set_index, mode in expected_terrain_modes:
+            terrain_checks += f"""
+    if tileset.get_terrain_set_mode({set_index}) != {mode}:
+        fail(
+            "Unexpected mode for terrain set {set_index}: %d"
+            % tileset.get_terrain_set_mode({set_index})
+        )
+        return
+"""
+
+    if expected_terrain_names is not None:
+        for set_index, terrain_name in expected_terrain_names:
+            terrain_checks += f"""
+    if tileset.get_terrain_name({set_index}, 0) != "{terrain_name}":
+        fail(
+            "Unexpected terrain name for set {set_index}: %s"
+            % tileset.get_terrain_name({set_index}, 0)
+        )
+        return
+"""
+
+    if expected_cell_terrains is not None:
+        for cell, set_index, terrain_index in expected_cell_terrains:
+            column, row = cell
+
+            terrain_checks += f"""
+    var cell_terrain_data_{column}_{row} := (
+        atlas_source.get_tile_data(Vector2i({column}, {row}), 0)
+    )
+
+    if cell_terrain_data_{column}_{row} == null:
+        fail("Missing tile data at Vector2i({column}, {row})")
+        return
+
+    if cell_terrain_data_{column}_{row}.get_terrain_set() != {set_index}:
+        fail(
+            "Unexpected terrain set at Vector2i({column}, {row}): %d"
+            % cell_terrain_data_{column}_{row}.get_terrain_set()
+        )
+        return
+
+    if cell_terrain_data_{column}_{row}.get_terrain() != {terrain_index}:
+        fail(
+            "Unexpected terrain at Vector2i({column}, {row}): %d"
+            % cell_terrain_data_{column}_{row}.get_terrain()
+        )
+        return
+"""
+
+    if expected_cell_peering_bits is not None:
+        peering_enum = {
+            "right_side": "TileSet.CELL_NEIGHBOR_RIGHT_SIDE",
+            "bottom_right_corner": "TileSet.CELL_NEIGHBOR_BOTTOM_RIGHT_CORNER",
+            "bottom_side": "TileSet.CELL_NEIGHBOR_BOTTOM_SIDE",
+            "bottom_left_corner": "TileSet.CELL_NEIGHBOR_BOTTOM_LEFT_CORNER",
+            "left_side": "TileSet.CELL_NEIGHBOR_LEFT_SIDE",
+            "top_left_corner": "TileSet.CELL_NEIGHBOR_TOP_LEFT_CORNER",
+            "top_side": "TileSet.CELL_NEIGHBOR_TOP_SIDE",
+            "top_right_corner": "TileSet.CELL_NEIGHBOR_TOP_RIGHT_CORNER",
+        }
+
+        for cell, bits in expected_cell_peering_bits:
+            column, row = cell
+
+            bit_checks = ""
+
+            for bit_name, expected_value in bits:
+                bit_checks += f"""
+    if cell_peering_data_{column}_{row}.get_terrain_peering_bit(
+        {peering_enum[bit_name]}
+    ) != {expected_value}:
+        fail(
+            "Unexpected peering bit {bit_name} at Vector2i({column}, {row}): %d"
+            % cell_peering_data_{column}_{row}.get_terrain_peering_bit(
+                {peering_enum[bit_name]}
+            )
+        )
+        return
+"""
+
+            terrain_checks += f"""
+    if not atlas_source.has_tile(Vector2i({column}, {row})):
+        fail("Missing tile at Vector2i({column}, {row})")
+        return
+
+    var cell_peering_data_{column}_{row} := (
+        atlas_source.get_tile_data(Vector2i({column}, {row}), 0)
+    )
+
+    if cell_peering_data_{column}_{row} == null:
+        fail("Missing tile data at Vector2i({column}, {row})")
+        return
+{bit_checks}"""
+
     script_path.write_text(
         f"""\
 extends SceneTree
@@ -404,6 +525,7 @@ func _initialize() -> void:
 {collision_polygon_checks}
 {collision_free_checks}
 {tile_size_checks}
+{terrain_checks}
     quit(0)
 """,
         encoding="utf-8",

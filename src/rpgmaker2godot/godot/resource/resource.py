@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..model import GodotAtlasTileResource
+from ..model import GodotAtlasTileResource, GodotTerrainSet
 
 
 @dataclass(frozen=True)
@@ -32,3 +32,5 @@ class GodotTileSetResource:
     atlas_source: GodotAtlasSourceResource
 
     has_physics_layer: bool = False
+
+    terrain_sets: tuple[GodotTerrainSet, ...] = ()

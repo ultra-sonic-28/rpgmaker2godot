@@ -161,6 +161,16 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
 
+    parser.add_argument(
+        "--no-terrains",
+        action="store_true",
+        help=(
+            "Skip Godot terrain generation for the unfolded A4 "
+            "autotiles (terrains power the automatic connection tool "
+            "in the Godot editor)."
+        ),
+    )
+
     # Enable ANSI escape sequences on the legacy Windows console.
     os.system("")
 
@@ -296,7 +306,9 @@ def main(argv: list[str] | None = None) -> int:
 
         _print_step(4, "Exporting Godot resources")
 
-        exporter = SimpleExporter()
+        exporter = SimpleExporter(
+            terrains=not args.no_terrains,
+        )
         generated = exporter.export(
             conversion,
             args.output,

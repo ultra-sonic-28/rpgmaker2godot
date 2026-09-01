@@ -40,7 +40,7 @@ where = ["src"]
 # Kept in a [tool.*] table on purpose: PEP 621 reserves the keys of
 # [project], and setuptools rejects any custom entry found there.
 [tool.rpgmaker2godot]
-build = 14
+build = 15
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

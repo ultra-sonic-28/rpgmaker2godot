@@ -315,7 +315,7 @@ only** — never to the console:
 A standalone binary is generated in `dist\rpgmaker2godot.exe` (all dependencies — Pillow, rich — are bundled, no Python interpreter required on the target machine):
 
 ```powershell
-pip install -e ".[build]"
+python -m pip install -e ".[build]"
 powershell -ExecutionPolicy Bypass -File scripts\build_exe.ps1
 ```
 

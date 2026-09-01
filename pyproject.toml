@@ -15,6 +15,7 @@ authors = [
 ]
 dependencies = [
     "Pillow>=11.0",
+    "PyYAML>=6.0.2",
     "rich>=13.0",
 ]
 
@@ -23,6 +24,7 @@ build = ["pyinstaller>=6.10"]
 dev = [
     "mypy>=1.14",
     "ruff>=0.8",
+    "types-PyYAML>=6.0.12",
 ]
 
 [project.scripts]

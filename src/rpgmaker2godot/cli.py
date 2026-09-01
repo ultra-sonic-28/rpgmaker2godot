@@ -530,8 +530,8 @@ def main(argv: list[str] | None = None) -> int:
     # Enable ANSI escape sequences on the legacy Windows console.
     os.system("")
 
-    # Opt-in logging, activated by a logging.json file in the
-    # working directory.
+    # Opt-in logging, activated by a rpgmaker2godot.yaml file in
+    # the working directory.
     configure_logging()
 
     display_program_banner()

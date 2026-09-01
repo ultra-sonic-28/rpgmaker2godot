@@ -1,8 +1,8 @@
-import json
 import logging
 from pathlib import Path
 
 import pytest
+import yaml
 
 from rpgmaker2godot.utils.log import (
     configure_logging,
@@ -31,10 +31,10 @@ def write_config(
     directory: Path,
     settings: dict,
 ) -> Path:
-    config_path = directory / "logging.json"
+    config_path = directory / "rpgmaker2godot.yaml"
 
     config_path.write_text(
-        json.dumps(settings),
+        yaml.safe_dump({"logger": settings}),
         encoding="utf-8",
     )
 
@@ -45,7 +45,7 @@ def test_stays_silent_without_configuration_file(
     tmp_path: Path,
     capsys,
 ) -> None:
-    activated = configure_logging(tmp_path / "missing.json")
+    activated = configure_logging(tmp_path / "missing.yaml")
 
     logger = get_logger(LOGGER_NAME)
 
@@ -152,9 +152,23 @@ def test_enabled_without_file_stays_silent(tmp_path: Path, capsys) -> None:
     assert captured.err == ""
 
 
-def test_invalid_json_falls_back_to_silent(tmp_path: Path) -> None:
-    config_path = tmp_path / "logging.json"
-    config_path.write_text("{not json", encoding="utf-8")
+def test_invalid_yaml_falls_back_to_silent(tmp_path: Path) -> None:
+    config_path = tmp_path / "rpgmaker2godot.yaml"
+    config_path.write_text("{not yaml", encoding="utf-8")
+
+    assert configure_logging(config_path) is False
+
+
+def test_missing_logger_section_stays_silent(tmp_path: Path) -> None:
+    config_path = tmp_path / "rpgmaker2godot.yaml"
+    config_path.write_text("enabled: true\n", encoding="utf-8")
+
+    assert configure_logging(config_path) is False
+
+
+def test_non_mapping_logger_section_stays_silent(tmp_path: Path) -> None:
+    config_path = tmp_path / "rpgmaker2godot.yaml"
+    config_path.write_text("logger: 42\n", encoding="utf-8")
 
     assert configure_logging(config_path) is False
 

@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+import yaml
 from PIL import Image
 
 from rpgmaker2godot.cli import main
@@ -556,13 +557,15 @@ def test_error_runs_never_record_into_any_log_file(capsys) -> None:
     # An aggressive configuration sits in the current (sandboxed) working
     # directory: even so, the failure path must not write anything.
     working_directory = Path.cwd()
-    (working_directory / "logging.json").write_text(
-        json.dumps(
+    (working_directory / "rpgmaker2godot.yaml").write_text(
+        yaml.safe_dump(
             {
-                "enabled": True,
-                "level": "DEBUG",
-                "file": str(working_directory / "probe.log"),
-                "mode": "APPEND",
+                "logger": {
+                    "enabled": True,
+                    "level": "DEBUG",
+                    "file": str(working_directory / "probe.log"),
+                    "mode": "APPEND",
+                },
             },
         ),
         encoding="utf-8",
@@ -604,13 +607,15 @@ def test_conversion_records_stay_inside_the_test_sandbox(
     before = project_log.read_bytes() if project_log.exists() else None
 
     working_directory = Path.cwd()
-    (working_directory / "logging.json").write_text(
-        json.dumps(
+    (working_directory / "rpgmaker2godot.yaml").write_text(
+        yaml.safe_dump(
             {
-                "enabled": True,
-                "level": "DEBUG",
-                "file": str(working_directory / "probe.log"),
-                "mode": "OVERWRITE",
+                "logger": {
+                    "enabled": True,
+                    "level": "DEBUG",
+                    "file": str(working_directory / "probe.log"),
+                    "mode": "OVERWRITE",
+                },
             },
         ),
         encoding="utf-8",

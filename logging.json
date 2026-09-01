@@ -1,6 +1,0 @@
-{
-  "enabled": true,
-  "level": "DEBUG",
-  "file": "rpgmaker2godot.log",
-  "mode": "OVERWRITE"
-}

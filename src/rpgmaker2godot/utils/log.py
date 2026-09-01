@@ -4,17 +4,19 @@ Logging is opt-in and file-only: without a configuration file the
 whole pipeline stays silent, and activated records are written to
 the configured file — never to the console.
 
-Drop a ``logging.json`` file in the working directory (or pass an
-explicit path to :func:`configure_logging`) to activate:
+Drop a ``rpgmaker2godot.yaml`` file in the working directory (or
+pass an explicit path to :func:`configure_logging`) to activate:
 
-.. code-block:: json
+.. code-block:: yaml
 
-    {
-        "enabled": true,
-        "level": "DEBUG",
-        "file": "rpgmaker2godot.log",
-        "mode": "OVERWRITE"
-    }
+    # Configuration for logging
+    logger:
+      enabled: true
+      level: "DEBUG"
+      file: "rpgmaker2godot.log"
+      mode: "OVERWRITE"
+
+The settings live in the ``logger`` section:
 
 * ``enabled``: master switch (absent or false keeps logging off);
 * ``level``: minimal severity — DEBUG, INFO, WARNING, ERROR;
@@ -24,12 +26,16 @@ explicit path to :func:`configure_logging`) to activate:
   values fall back to ``APPEND``.
 """
 
-import json
 import logging
 from pathlib import Path
 
+import yaml
+
 _LOGGER_ROOT = "rpgmaker2godot"
-_DEFAULT_CONFIG_FILENAME = "logging.json"
+_DEFAULT_CONFIG_FILENAME = "rpgmaker2godot.yaml"
+
+# Top-level YAML section holding the settings.
+_CONFIG_SECTION = "logger"
 
 # Default fate of an existing log file when logging activates:
 # records keep being added at the end of the file.
@@ -56,7 +62,7 @@ def get_logger(
 def configure_logging(
     config_path: Path | None = None,
 ) -> bool:
-    """Configure every rpgmaker2godot logger from a JSON file.
+    """Configure every rpgmaker2godot logger from a YAML file.
 
     The call is idempotent: previously installed handlers are removed
     before the new configuration is applied.
@@ -67,8 +73,8 @@ def configure_logging(
 
     Args:
         config_path: Explicit path to the configuration file. When
-            omitted, ``logging.json`` is looked up in the current
-            working directory.
+            omitted, ``rpgmaker2godot.yaml`` is looked up in the
+            current working directory.
 
     Returns:
         Whether logging got activated.
@@ -117,17 +123,22 @@ def configure_logging(
 def _load_settings(
     config_path: Path,
 ) -> dict:
-    """Load the JSON settings, falling back to 'disabled'."""
+    """Load the YAML ``logger`` section, falling back to 'disabled'."""
 
     if not config_path.is_file():
         return {}
 
     try:
-        settings = json.loads(
+        document = yaml.safe_load(
             config_path.read_text(encoding="utf-8"),
         )
-    except (json.JSONDecodeError, OSError):
+    except (yaml.YAMLError, OSError):
         return {}
+
+    if not isinstance(document, dict):
+        return {}
+
+    settings = document.get(_CONFIG_SECTION)
 
     if not isinstance(settings, dict):
         return {}

@@ -242,23 +242,25 @@ src/rpgmaker2godot/
 
 ### Logging
 
-The pipeline is silent by default. Drop a `logging.json` file into the working directory to enable debug logging (raw flags, decoded properties and generated polygons, tile by tile). Records are written **to the configured file only** — never to the console:
+The pipeline is silent by default. Drop a `rpgmaker2godot.yaml` file into the working directory to enable debug logging (raw flags, decoded properties and generated polygons, tile by tile). Records are written **to the configured file only** — never to the console:
 
-```json
-{
-  "enabled": true,
-  "level": "DEBUG",
-  "file": "rpgmaker2godot.log",
-  "mode": "OVERWRITE"
-}
+```yaml
+# Configuration for logging
+logger:
+  enabled: true
+  level: "DEBUG"
+  file: "rpgmaker2godot.log"
+  mode: "OVERWRITE"
 ```
+
+The settings live in the `logger` section:
 
 * `enabled`: master switch;
 * `level`: minimum severity (`DEBUG`, `INFO`, `WARNING`, `ERROR`);
 * `file`: **required** — the sole destination of the records; without this field, logging stays disabled;
 * `mode`: `APPEND` (default) appends records at the end of the existing file, `OVERWRITE` recreates the file on every run — any missing or unknown value falls back to `APPEND`.
 
-> Running the test-suite never writes to this file: every test executes in an isolated working directory, so an ambient `logging.json` left next to the sources is invisible to the application under test.
+> Running the test-suite never writes to this file: every test executes in an isolated working directory, so an ambient `rpgmaker2godot.yaml` left next to the sources is invisible to the application under test.
 
 ### Windows executable
 

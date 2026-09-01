@@ -4,8 +4,9 @@ Running the tests must NEVER write to a developer's
 ``rpgmaker2godot.log``. Two structural guards enforce it:
 
 * every test executes inside a fresh, empty working directory, so the
-  default ``logging.json`` lookup performed by ``configure_logging()``
-  cannot discover an ambient configuration left next to the sources;
+  default ``rpgmaker2godot.yaml`` lookup performed by
+  ``configure_logging()`` cannot discover an ambient configuration
+  left next to the sources;
 * the ``rpgmaker2godot`` root logger is scrubbed before AND after each
   test, so no ``FileHandler`` can ever leak between tests.
 """

@@ -1,0 +1,6 @@
+# Configuration for logging
+logger:
+  enabled: true
+  level: "DEBUG"
+  file: "rpgmaker2godot.log"
+  mode: "OVERWRITE"

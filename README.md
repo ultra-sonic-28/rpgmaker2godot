@@ -2,6 +2,102 @@
 
 CLI tool written in Python 3.13+ to convert RPG Maker MV/MZ tilesets into Godot resources.
 
+## Command-line options
+
+```
+rpgmaker2godot [-h] [--simple] [--tileset TILESET] [--no-merge]
+               [--tolerance TOLERANCE] [--no-terrains] input output
+```
+
+Each option is described below with an example; `rpgmaker2godot --help`
+prints the same reference inline.
+
+### `input` — input directory (positional)
+
+Directory containing the RPG Maker MV/MZ tilesheets to convert: the
+`A4.png`, `A5.png` and `B.png`–`E.png` sheets, optionally prefixed
+(e.g. `world_B.png`), typically a project's `img/tilesets/` folder. A
+`Tilesets.json` placed in the same directory is used to resolve the
+collision flags.
+
+```bash
+rpgmaker2godot --simple "C:/RPG Maker/MyProject/img/tilesets" output
+```
+
+### `output` — output directory (positional)
+
+Directory receiving the generated Godot resources: one `<tileset>.png`
+atlas and one `<tileset>.tres` TileSet per converted tileset. It is
+created when missing.
+
+```bash
+rpgmaker2godot --simple img/tilesets "C:/Godot/MyGame/assets/tilesets"
+```
+
+### `--simple`
+
+Selects the simple conversion mode (`A5`, `B`–`E`, plus the `A4`
+autotile unfolding) — the only mode currently supported, so the flag
+is required for every run.
+
+```bash
+rpgmaker2godot --simple img/tilesets output
+```
+
+### `--tileset TILESET`
+
+Restricts the conversion to a single tileset. The value is either a
+tileset family prefix (`Inside` converts every `Inside_*.png` sheet)
+or one exact sheet file (`Inside_B.png`; the `.png` extension is
+assumed when omitted, so `--tileset Inside_B` works too). Matching is
+case-insensitive. When nothing in the input directory matches, a
+warning is displayed and nothing is converted. Without the option,
+every tileset found in the input directory is converted.
+
+```bash
+rpgmaker2godot --simple --tileset Outside img/tilesets output
+```
+
+### `--no-merge`
+
+Keeps the source sheets split: exports one PNG atlas and one `.tres`
+per input sheet (`Inside_A5.png` + `Inside_A5.tres`, `Inside_B.png` +
+`Inside_B.tres`, …) instead of merging the sheets sharing a prefix
+into a single stacked output (the default behaviour).
+
+```bash
+rpgmaker2godot --simple --no-merge img/tilesets output
+```
+
+### `--tolerance TOLERANCE`
+
+Merges unfolded A4 autotiles whose pixel difference is within `N`
+pixels, discarding source-image noise. Defaults to `0` (byte-exact
+match) and must be `>= 0`.
+
+```bash
+rpgmaker2godot --simple --tolerance 8 img/tilesets output
+```
+
+### `--no-terrains`
+
+Skips the Godot terrain generation for the unfolded A4 autotiles
+(terrains power the automatic connection tool in the Godot editor);
+the generated `.tres` then contains no `terrain_set_*` metadata.
+
+```bash
+rpgmaker2godot --simple --no-terrains img/tilesets output
+```
+
+### `-h`, `--help`
+
+Prints the usage reference (the block shown at the top of this
+section) and exits.
+
+```bash
+rpgmaker2godot --help
+```
+
 ## Development
 
 Create the virtual environment:
@@ -16,10 +112,10 @@ Activate it:
 .\.venv\Scripts\activate
 ```
 
-And install the project:
+And install the project with the development extras (`ruff` + `mypy`):
 
 ```bash
-python -m pip install -e .
+python -m pip install -e ".[dev]"
 ```
 
 Run:
@@ -29,12 +125,6 @@ rpgmaker2godot
 ```
 
 ### Linting and type checking
-
-Install the development extras (`ruff` + `mypy`):
-
-```bash
-python -m pip install -e ".[dev]"
-```
 
 Lint with ruff (checks the whole repository, using the rules configured in `[tool.ruff]`):
 

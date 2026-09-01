@@ -228,7 +228,7 @@ src/rpgmaker2godot/
 ├── image/                          # Image extraction (PIL/Pillow)
 │   ├── extractor.py                # TileExtractor: crops a single Tile out of an ImageSource
 │   └── source.py                   # ImageSource: lazy access to an image file (open/close, context manager)
-├── utils/                          # Console messages (rich banner)
+├── utils/                          # config.py (rpgmaker2godot.yaml), log.py, messages.py (rich banner)
 └── godot/                          # Godot resource generation
     ├── model.py                    # Godot models (GodotTileSet, etc.)
     ├── atlas/                      # atlas_builder.py, atlas_mapper.py
@@ -240,9 +240,10 @@ src/rpgmaker2godot/
     └── collision/                  # tile_collision.py (has_collision — guards the semantic/geometry boundary)
 ```
 
-### Logging
+### Configuration (`rpgmaker2godot.yaml`)
 
-The pipeline is silent by default. Drop a `rpgmaker2godot.yaml` file into the working directory to enable debug logging (raw flags, decoded properties and generated polygons, tile by tile). Records are written **to the configured file only** — never to the console:
+A single `rpgmaker2godot.yaml` file, dropped into the working directory,
+configures the whole tool:
 
 ```yaml
 # Configuration for logging
@@ -251,14 +252,61 @@ logger:
   level: "DEBUG"
   file: "rpgmaker2godot.log"
   mode: "OVERWRITE"
+
+# Tileset configuration for Godot
+tileset:
+  path: "world/tilesets"
+
+# Character configuration for Godot
+character:
+  path: "entities/player/sprites"
+  idle:
+    speed: 3.0
+    duration: 1.0
+    loop: 1
+  walk:
+    speed: 6.0
+    duration: 1.0
+    loop: 1
+  damaged:
+    speed: 5.0
+    duration: 1.0
+    loop: 0
 ```
 
-The settings live in the `logger` section:
+#### `logger`
+
+The pipeline is silent by default; the `logger` section enables
+file-only logging (raw flags, decoded properties and generated
+polygons, tile by tile). Records are written **to the configured file
+only** — never to the console:
 
 * `enabled`: master switch;
 * `level`: minimum severity (`DEBUG`, `INFO`, `WARNING`, `ERROR`);
 * `file`: **required** — the sole destination of the records; without this field, logging stays disabled;
 * `mode`: `APPEND` (default) appends records at the end of the existing file, `OVERWRITE` recreates the file on every run — any missing or unknown value falls back to `APPEND`.
+
+#### `tileset`
+
+* `path`: the directory, relative to `res://`, where the tileset
+  atlases are stored inside the Godot project. It feeds the `path` of
+  the `ext_resource` of every generated `.tres`:
+  `path="res://world/tilesets/Inside.png"` for `path: "world/tilesets"`.
+  When omitted, the texture is referenced next to the `.tres`.
+
+#### `character`
+
+* `path`: the directory, relative to `res://`, where the character
+  spritesheets are stored inside the Godot project. It feeds the
+  `path` of the `ext_resource` of every generated `SpriteFrames`
+  resource: `path="res://entities/player/sprites/player-1.png"` for
+  `path: "entities/player/sprites"`.
+* `idle`, `walk`, `damaged`: playback settings applied to the
+  corresponding animations:
+  * `speed`: playback speed in frames per second;
+  * `duration`: duration of every frame of the animation (seconds);
+  * `loop` (also accepts `0`/`1`): whether the animation keeps playing
+    in a loop.
 
 > Running the test-suite never writes to this file: every test executes in an isolated working directory, so an ambient `rpgmaker2godot.yaml` left next to the sources is invisible to the application under test.
 

@@ -80,7 +80,10 @@ class GodotSpriteFramesSerializer:
                         if frame_index > 0:
                             lines.append("}, {")
 
-                        lines.append('"duration": 1.0,')
+                        lines.append(
+                            f'"duration": '
+                            f'{_format_float(animation.duration)},'
+                        )
 
                         lines.append(
                             f'"texture": SubResource("{frame.resource_id}")'

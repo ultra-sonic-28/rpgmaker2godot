@@ -19,6 +19,7 @@ class CharacterExporter:
         self,
         godot_spriteframes_writer: GodotSpriteFramesWriter | None = None,
         godot_project_root: Path | None = None,
+        godot_output_path: str | None = None,
     ) -> None:
         self._godot_spriteframes_writer = (
             godot_spriteframes_writer
@@ -27,6 +28,12 @@ class CharacterExporter:
         )
 
         self._godot_project_root = godot_project_root
+
+        # Directory, relative to res://, where the generated
+        # spritesheets will be stored in the Godot project
+        # (character.path from rpgmaker2godot.yaml). When set, the
+        # .tres references "<name>.png" through this path.
+        self._godot_output_path = godot_output_path
 
     def export(
         self,
@@ -54,7 +61,11 @@ class CharacterExporter:
                 output_directory / f"{sheet.name}.tres"
             )
 
-            if self._godot_project_root is None:
+            if self._godot_output_path is not None:
+                godot_texture_path = Path(
+                    f"res://{self._godot_output_path}/{sheet.name}.png",
+                )
+            elif self._godot_project_root is None:
                 godot_texture_path = Path(
                     texture_path.name,
                 )

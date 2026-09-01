@@ -24,6 +24,7 @@ class CharacterAnimation:
     speed: float
     loop: bool
     frames: tuple[CharacterFrame, ...]
+    duration: float = 1.0
 
 
 @dataclass(frozen=True)

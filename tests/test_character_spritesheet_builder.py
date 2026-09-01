@@ -134,3 +134,46 @@ def test_animation_speeds_and_loops_follow_the_layout() -> None:
     assert loops["walk-up"] is True
     assert loops["idle-up"] is True
     assert loops["damaged"] is False
+
+
+def test_animation_overrides_tune_speed_duration_and_loop() -> None:
+    overrides = {
+        "walk-down": (12.0, 0.5, False),
+        "walk-left": (12.0, 0.5, False),
+        "walk-right": (12.0, 0.5, False),
+        "walk-up": (12.0, 0.5, False),
+        "idle-down": (4.0, 2.0, False),
+        "idle-left": (4.0, 2.0, False),
+        "idle-right": (4.0, 2.0, False),
+        "idle-up": (4.0, 2.0, False),
+        "damaged": (10.0, 0.25, True),
+    }
+
+    sheet = CharacterSpriteSheetBuilder(
+        animation_overrides=overrides,
+    ).convert(build_analysis()).sheets[0]
+
+    assert sheet.animations[0].speed == 12.0
+    assert sheet.animations[0].duration == 0.5
+    assert sheet.animations[0].loop is False
+
+    assert sheet.animations[4].speed == 4.0
+    assert sheet.animations[4].duration == 2.0
+    assert sheet.animations[4].loop is False
+
+    damaged = sheet.animations[8]
+
+    assert damaged.speed == 10.0
+    assert damaged.duration == 0.25
+    assert damaged.loop is True
+
+
+def test_animations_keep_the_layout_duration_by_default() -> None:
+    sheet = CharacterSpriteSheetBuilder().convert(
+        build_analysis(),
+    ).sheets[0]
+
+    assert all(
+        animation.duration == 1.0
+        for animation in sheet.animations
+    )

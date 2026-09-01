@@ -3,8 +3,6 @@ from pathlib import Path
 from PIL import Image
 
 from rpgmaker2godot.analysis.detector import TilesetDetector
-from rpgmaker2godot.atlas.builder import AtlasBuilder
-from rpgmaker2godot.atlas.writer import AtlasWriter
 from rpgmaker2godot.conversion.converter import SimpleConverter
 from rpgmaker2godot.godot.export.simple import SimpleExporter
 from rpgmaker2godot.model.enums import SheetType
@@ -447,3 +445,46 @@ def test_exports_godot_resource_referencing_atlas(
     assert "TileSetAtlasSource" in content
     assert "res://Inside.png" in content
     assert "48" in content
+
+
+def test_exports_godot_resource_referencing_config_output_path(
+    tmp_path: Path,
+) -> None:
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    create_sheet(
+        input_directory,
+        "Inside_A5.png",
+    )
+
+    create_sheet(
+        input_directory,
+        "Inside_B.png",
+    )
+
+    create_sheet(
+        input_directory,
+        "Inside_C.png",
+    )
+
+    analysis = TilesetDetector().analyze(
+        input_directory,
+    )
+
+    conversion = SimpleConverter().convert(
+        analysis,
+    )
+
+    SimpleExporter(
+        godot_output_path="world/tilesets",
+    ).export(
+        conversion,
+        output_directory,
+    )
+
+    content = (output_directory / "Inside.tres").read_text(
+        encoding="utf-8",
+    )
+
+    assert 'path="res://world/tilesets/Inside.png"' in content

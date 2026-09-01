@@ -29,10 +29,10 @@ The settings live in the ``logger`` section:
 import logging
 from pathlib import Path
 
-import yaml
+from .config import DEFAULT_CONFIG_FILENAME, load_section
 
 _LOGGER_ROOT = "rpgmaker2godot"
-_DEFAULT_CONFIG_FILENAME = "rpgmaker2godot.yaml"
+_DEFAULT_CONFIG_FILENAME = DEFAULT_CONFIG_FILENAME
 
 # Top-level YAML section holding the settings.
 _CONFIG_SECTION = "logger"
@@ -125,25 +125,7 @@ def _load_settings(
 ) -> dict:
     """Load the YAML ``logger`` section, falling back to 'disabled'."""
 
-    if not config_path.is_file():
-        return {}
-
-    try:
-        document = yaml.safe_load(
-            config_path.read_text(encoding="utf-8"),
-        )
-    except (yaml.YAMLError, OSError):
-        return {}
-
-    if not isinstance(document, dict):
-        return {}
-
-    settings = document.get(_CONFIG_SECTION)
-
-    if not isinstance(settings, dict):
-        return {}
-
-    return settings
+    return load_section(config_path, _CONFIG_SECTION)
 
 
 def _parse_level(

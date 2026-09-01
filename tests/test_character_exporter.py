@@ -182,3 +182,26 @@ def test_uses_the_godot_project_root_for_the_texture_path(
     )
 
     assert 'path="res://generated/player-1.png"' in content
+
+
+def test_uses_the_config_output_path_for_the_texture_path(
+    tmp_path: Path,
+) -> None:
+    source_path = create_source_sheet(tmp_path / "src", "player-1.png")
+    output_directory = tmp_path / "output"
+
+    CharacterExporter(
+        godot_output_path="entities/player/sprites",
+    ).export(
+        build_conversion(source_path),
+        output_directory,
+    )
+
+    content = (output_directory / "player-1.tres").read_text(
+        encoding="utf-8",
+    )
+
+    assert (
+        'path="res://entities/player/sprites/player-1.png"'
+        in content
+    )

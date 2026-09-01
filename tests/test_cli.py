@@ -952,3 +952,54 @@ def test_missing_tileset_displays_warning(
 
     # No output was generated for the missing tileset.
     assert not output_directory.exists()
+
+
+def test_tileset_output_path_comes_from_the_configuration(
+    tmp_path: Path,
+) -> None:
+    """tileset.path in rpgmaker2godot.yaml drives the res:// reference."""
+
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    create_sheet(
+        input_directory,
+        "Inside_A5.png",
+        color=(255, 0, 0, 255),
+    )
+
+    create_sheet(
+        input_directory,
+        "Inside_B.png",
+        color=(0, 255, 0, 255),
+    )
+
+    # The conftest runs every test in a fresh working directory:
+    # dropping rpgmaker2godot.yaml there mirrors a real run.
+    working_directory = Path.cwd()
+    (working_directory / "rpgmaker2godot.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "tileset": {
+                    "path": "world/tilesets",
+                },
+            },
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "--simple",
+            str(input_directory),
+            str(output_directory),
+        ]
+    )
+
+    assert exit_code == 0
+
+    content = (output_directory / "Inside.tres").read_text(
+        encoding="utf-8",
+    )
+
+    assert 'path="res://world/tilesets/Inside.png"' in content

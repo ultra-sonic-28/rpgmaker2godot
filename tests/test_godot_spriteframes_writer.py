@@ -82,6 +82,7 @@ def test_writes_a_spriteframes_resource(tmp_path: Path) -> None:
     assert "region = Rect2(0, 192, 48, 48)" in content
     assert '"name": &"walk-down",' in content
     assert '"name": &"idle-down",' in content
+    assert '"duration": 1.0,' in content
 
 
 def test_numbers_frames_across_animations(tmp_path: Path) -> None:

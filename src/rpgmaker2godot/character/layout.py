@@ -46,6 +46,17 @@ class CharacterAnimationSpec:
     frame_count: int
     speed: float
     loop: bool
+    duration: float = 1.0
+
+
+# Animation families tuned through the configuration file: every
+# animation sharing a family (walk, idle, damaged) receives the same
+# playback settings.
+CHARACTER_ANIMATION_FAMILIES: dict[str, tuple[str, ...]] = {
+    "walk": ("walk-down", "walk-left", "walk-right", "walk-up"),
+    "idle": ("idle-down", "idle-left", "idle-right", "idle-up"),
+    "damaged": ("damaged",),
+}
 
 
 CHARACTER_ANIMATIONS: tuple[CharacterAnimationSpec, ...] = (

@@ -92,6 +92,7 @@ class GodotSpriteFramesWriter:
                     speed=animation.speed,
                     loop=animation.loop,
                     frames=tuple(frames),
+                    duration=animation.duration,
                 )
             )
 

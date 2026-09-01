@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import yaml
 from PIL import Image
 
 from rpgmaker2godot.cli import main
@@ -270,3 +271,68 @@ def test_default_mode_is_tileset(tmp_path: Path, capsys) -> None:
 
     # The tileset pipeline still requires --simple.
     assert "Only --simple mode is currently supported." in output
+
+
+def test_character_mode_applies_the_configuration_file(
+    tmp_path: Path,
+) -> None:
+    input_directory = tmp_path / "characters"
+    output_directory = tmp_path / "output"
+
+    create_character_sheet(input_directory, "player-1.png")
+
+    # The conftest runs every test in a fresh working directory:
+    # dropping rpgmaker2godot.yaml there mirrors a real run.
+    working_directory = Path.cwd()
+    (working_directory / "rpgmaker2godot.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "character": {
+                    "path": "entities/player/sprites",
+                    "idle": {
+                        "speed": 3.0,
+                        "duration": 0.5,
+                        "loop": 1,
+                    },
+                    "walk": {
+                        "speed": 6.0,
+                        "duration": 1.0,
+                        "loop": 1,
+                    },
+                    "damaged": {
+                        "speed": 5.0,
+                        "duration": 1.0,
+                        "loop": 1,
+                    },
+                },
+            },
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "--mode",
+            "CHARACTER",
+            str(input_directory),
+            str(output_directory),
+        ]
+    )
+
+    assert exit_code == 0
+
+    content = (output_directory / "player-1.tres").read_text(
+        encoding="utf-8",
+    )
+
+    # The res:// output path comes from character.path.
+    assert (
+        'path="res://entities/player/sprites/player-1.png"'
+        in content
+    )
+
+    # The playback settings come from the character section.
+    assert '"speed": 3.0' in content
+    assert '"speed": 5.0' in content
+    assert '"duration": 0.5,' in content
+    assert '"loop": true,' in content

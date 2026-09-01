@@ -4,8 +4,8 @@ from rpgmaker2godot.atlas.builder import AtlasBuilder
 from rpgmaker2godot.atlas.writer import AtlasWriter
 from rpgmaker2godot.godot.atlas.atlas_mapper import GodotAtlasMapper
 from rpgmaker2godot.godot.resource.resource_writer import GodotResourceWriter
-from rpgmaker2godot.godot.tileset.tileset_builder import GodotTileSetBuilder
 from rpgmaker2godot.godot.terrain.terrain_builder import GodotTerrainBuilder
+from rpgmaker2godot.godot.tileset.tileset_builder import GodotTileSetBuilder
 from rpgmaker2godot.model.tileset import ConversionResult
 
 
@@ -20,6 +20,7 @@ class SimpleExporter:
         godot_tileset_builder: GodotTileSetBuilder | None = None,
         godot_resource_writer: GodotResourceWriter | None = None,
         godot_project_root: Path | None = None,
+        godot_output_path: str | None = None,
         terrains: bool = True,
         godot_terrain_builder: GodotTerrainBuilder | None = None,
     ) -> None:
@@ -54,6 +55,12 @@ class SimpleExporter:
         )
 
         self._godot_project_root = godot_project_root
+
+        # Directory, relative to res://, where the generated textures
+        # will be stored in the Godot project (tileset.path /
+        # character.path from rpgmaker2godot.yaml). When set, the
+        # .tres references "<output name>.png" through this path.
+        self._godot_output_path = godot_output_path
 
         self._terrains = terrains
 
@@ -107,7 +114,11 @@ class SimpleExporter:
                 output_directory / f"{tileset.name}.tres"
             )
 
-            if self._godot_project_root is None:
+            if self._godot_output_path is not None:
+                godot_texture_path = Path(
+                    f"res://{self._godot_output_path}/{tileset.name}.png",
+                )
+            elif self._godot_project_root is None:
                 godot_texture_path = Path(
                     atlas_path.name,
                 )

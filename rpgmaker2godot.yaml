@@ -4,3 +4,23 @@ logger:
   level: "DEBUG"
   file: "rpgmaker2godot.log"
   mode: "OVERWRITE"
+
+# Tileset configuration for Godot
+tileset:
+  path: "world/tilesets"
+
+# Character configuration for Godot
+character:
+  path: "entities/player/sprites"
+  idle:
+    speed: 3.0
+    duration: 1.0
+    loop: 1
+  walk:
+    speed: 6.0
+    duration: 1.0
+    loop: 1
+  damaged:
+    speed: 5.0
+    duration: 1.0
+    loop: 0

@@ -31,6 +31,7 @@ class GodotSpriteFramesAnimation:
     speed: float
     loop: bool
     frames: tuple[GodotSpriteFramesFrame, ...]
+    duration: float = 1.0
 
 
 @dataclass(frozen=True)

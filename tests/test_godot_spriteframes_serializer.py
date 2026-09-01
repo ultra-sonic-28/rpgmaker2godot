@@ -109,6 +109,61 @@ def test_load_steps_counts_ext_and_sub_resources() -> None:
     assert "load_steps=5" in content
 
 
+def test_uses_each_animation_duration() -> None:
+    resource = GodotSpriteFramesResource(
+        texture=GodotSpriteFramesTexture(
+            resource_id="1_texture",
+            resource_type="Texture2D",
+            path="res://hero.png",
+        ),
+        animations=(
+            GodotSpriteFramesAnimation(
+                name="idle-down",
+                speed=3.0,
+                loop=True,
+                duration=0.5,
+                frames=(
+                    GodotSpriteFramesFrame(
+                        resource_id="AtlasTexture_1",
+                        x=0,
+                        y=192,
+                        width=48,
+                        height=48,
+                    ),
+                    GodotSpriteFramesFrame(
+                        resource_id="AtlasTexture_2",
+                        x=48,
+                        y=192,
+                        width=48,
+                        height=48,
+                    ),
+                ),
+            ),
+            GodotSpriteFramesAnimation(
+                name="damaged",
+                speed=5.0,
+                loop=False,
+                duration=0.25,
+                frames=(
+                    GodotSpriteFramesFrame(
+                        resource_id="AtlasTexture_3",
+                        x=0,
+                        y=384,
+                        width=48,
+                        height=48,
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    content = GodotSpriteFramesSerializer().serialize(resource)
+
+    assert '"duration": 0.5,' in content
+    assert '"duration": 0.25,' in content
+    assert '"duration": 1.0,' not in content
+
+
 def test_full_output_for_a_single_frame_animation() -> None:
     resource = GodotSpriteFramesResource(
         texture=GodotSpriteFramesTexture(

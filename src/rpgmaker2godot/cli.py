@@ -11,12 +11,14 @@ from PIL import Image
 from .analysis.character_detector import CharacterDetector
 from .analysis.detector import TilesetDetector
 from .analysis.models import AnalysisResult
+from .character.layout import CHARACTER_ANIMATION_FAMILIES
 from .character.spritesheet_builder import CharacterSpriteSheetBuilder
 from .conversion.converter import SimpleConverter
 from .godot.export.characters import CharacterExporter
 from .godot.export.simple import SimpleExporter
 from .tileset.reader import TilesetsJsonReader
 from .tileset.resolver import TilePropertiesResolver
+from .utils.config import AppConfig, load_app_config
 from .utils.log import configure_logging
 from .utils.messages import display_program_banner, display_warning
 
@@ -208,8 +210,29 @@ def _warn_ignored_tileset_options(
     )
 
 
+def _character_animation_overrides(
+    config: AppConfig,
+) -> dict[str, tuple[float, float, bool]]:
+    """Per-animation playback overrides derived from the character config."""
+
+    overrides: dict[str, tuple[float, float, bool]] = {}
+
+    for family, names in CHARACTER_ANIMATION_FAMILIES.items():
+        animation = getattr(config.character, family)
+
+        for name in names:
+            overrides[name] = (
+                animation.speed,
+                animation.duration,
+                animation.loop,
+            )
+
+    return overrides
+
+
 def _run_character_mode(
     args: argparse.Namespace,
+    config: AppConfig,
 ) -> int:
     """Convert every character spritesheet of the input directory."""
 
@@ -248,7 +271,9 @@ def _run_character_mode(
         CHARACTER_TOTAL_STEPS,
     )
 
-    conversion = CharacterSpriteSheetBuilder().convert(result)
+    conversion = CharacterSpriteSheetBuilder(
+        animation_overrides=_character_animation_overrides(config),
+    ).convert(result)
 
     for sheet in conversion.sheets:
         print(
@@ -262,7 +287,9 @@ def _run_character_mode(
         CHARACTER_TOTAL_STEPS,
     )
 
-    exporter = CharacterExporter()
+    exporter = CharacterExporter(
+        godot_output_path=(config.character.path or None),
+    )
     generated = exporter.export(
         conversion,
         args.output,
@@ -293,6 +320,7 @@ def _run_character_mode(
 
 def _run_tileset_mode(
     args: argparse.Namespace,
+    config: AppConfig,
 ) -> int:
     """Convert every (or the selected) tileset of the input directory."""
 
@@ -404,6 +432,7 @@ def _run_tileset_mode(
     _print_step(4, "Exporting Godot resources", TILESET_TOTAL_STEPS)
 
     exporter = SimpleExporter(
+        godot_output_path=(config.tileset.path or None),
         terrains=not args.no_terrains,
     )
     generated = exporter.export(
@@ -581,11 +610,13 @@ def main(argv: list[str] | None = None) -> int:
 
             return 2
 
+    app_config = load_app_config()
+
     try:
         if character_mode:
-            return _run_character_mode(args)
+            return _run_character_mode(args, app_config)
 
-        return _run_tileset_mode(args)
+        return _run_tileset_mode(args, app_config)
 
     except (
         FileNotFoundError,

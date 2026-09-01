@@ -2,12 +2,14 @@ import argparse
 import os
 import sys
 from collections import defaultdict
+from dataclasses import replace
 from pathlib import Path
 from typing import TextIO
 
 from PIL import Image
 
 from .analysis.detector import TilesetDetector
+from .analysis.models import AnalysisResult
 from .conversion.converter import SimpleConverter
 from .godot.export.simple import SimpleExporter
 from .tileset.reader import TilesetsJsonReader
@@ -116,6 +118,59 @@ def _format_usage_error(
     return f"{usage}\n{parser.prog}: error: {message}"
 
 
+def _select_tileset(
+    result: AnalysisResult,
+    requested: str,
+) -> tuple[AnalysisResult, str | None]:
+    """Restrict an analysis result to the requested tileset.
+
+    The value names either a single sheet file (``Inside_B`` or
+    ``Inside_B.png`` — the ``.png`` extension is assumed when
+    omitted) or a tileset family by prefix (``Inside`` converts
+    ``Inside_A4.png``, ``Inside_B.png``, ...).
+
+    Matching is case-insensitive, like the detector's filename
+    scan.
+
+    Returns the filtered result, or the untouched result plus a
+    warning message when nothing matches the request.
+    """
+
+    filename = (
+        requested
+        if requested.lower().endswith(".png")
+        else f"{requested}.png"
+    )
+
+    name = filename[: -len(".png")]
+
+    # A value naming an existing sheet file converts exactly that
+    # sheet.
+    selected = tuple(
+        sheet
+        for sheet in result.sheets
+        if sheet.path.name.lower() == filename.lower()
+    )
+
+    if not selected:
+        # Otherwise the value is a tileset name (the sheet filename
+        # prefix): convert every sheet of that family.
+        selected = tuple(
+            sheet
+            for sheet in result.sheets
+            if sheet.prefix.lower() == name.lower()
+        )
+
+    if not selected:
+        return result, (
+            f"Tileset '{requested}' not found: no sheet named "
+            f"'{filename}' and no tileset prefix '{name}_' in "
+            f"{result.input_directory}. Nothing was converted."
+        )
+
+    return replace(result, sheets=selected), None
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _Parser(
         prog="rpgmaker2godot",
@@ -138,6 +193,19 @@ def main(argv: list[str] | None = None) -> int:
         "--simple",
         action="store_true",
         help="Use the simple conversion mode (A5/B/C/D/E).",
+    )
+
+    parser.add_argument(
+        "--tileset",
+        metavar="TILESET",
+        default=None,
+        help=(
+            "Convert only the named tileset: either a single sheet "
+            "file (e.g. Inside_B, the .png extension is assumed when "
+            "omitted) or a tileset family by prefix (e.g. Inside "
+            "converts every Inside_*.png sheet). When omitted, every "
+            "tileset found in the input directory is converted."
+        ),
     )
 
     parser.add_argument(
@@ -212,6 +280,17 @@ def main(argv: list[str] | None = None) -> int:
     try:
         detector = TilesetDetector()
         result = detector.analyze(args.input)
+
+        if args.tileset is not None:
+            result, warning = _select_tileset(
+                result,
+                args.tileset,
+            )
+
+            if warning is not None:
+                display_warning(warning)
+
+                return 1
 
         _print_step(1, "Analyzing input directory")
 

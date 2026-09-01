@@ -487,7 +487,7 @@ def test_missing_arguments_show_banner_then_usage_panel(
 
     # The usage failure follows, rendered inside a warning frame.
     assert (
-        "usage: rpgmaker2godot [-h] [--simple] [--no-merge] [--tolerance TOLERANCE] [--no-terrains] input output"
+        "usage: rpgmaker2godot [-h] [--simple] [--tileset TILESET] [--no-merge] [--tolerance TOLERANCE] [--no-terrains] input output"
         in output
     )
     assert (
@@ -770,3 +770,180 @@ def test_no_terrains_flag_skips_terrain_generation(
 
     assert "terrain_set_0/mode" not in skipped_content
     assert "terrains_peering_bit" not in skipped_content
+
+
+def test_tileset_option_converts_only_named_tileset(
+    tmp_path: Path,
+) -> None:
+    """--tileset Outside converts the Outside family only."""
+
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    for tileset, color in (
+        ("Inside", (255, 0, 0, 255)),
+        ("Outside", (0, 255, 0, 255)),
+    ):
+        for sheet_type in ("A5", "B", "C"):
+            create_sheet(
+                input_directory,
+                f"{tileset}_{sheet_type}.png",
+                color=color,
+            )
+
+    exit_code = main(
+        [
+            "--simple",
+            "--tileset",
+            "Outside",
+            str(input_directory),
+            str(output_directory),
+        ]
+    )
+
+    assert exit_code == 0
+
+    # Only the requested tileset family is exported.
+    assert (output_directory / "Outside.png").exists()
+    assert (output_directory / "Outside.tres").exists()
+    assert not (output_directory / "Inside.png").exists()
+    assert not (output_directory / "Inside.tres").exists()
+
+
+def test_tileset_option_accepts_png_extension(
+    tmp_path: Path,
+) -> None:
+    """--tileset Outside.png resolves to the Outside family."""
+
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    for tileset in ("Inside", "Outside"):
+        for sheet_type in ("A5", "B", "C"):
+            create_sheet(
+                input_directory,
+                f"{tileset}_{sheet_type}.png",
+            )
+
+    exit_code = main(
+        [
+            "--simple",
+            "--tileset",
+            "Outside.png",
+            str(input_directory),
+            str(output_directory),
+        ]
+    )
+
+    assert exit_code == 0
+
+    assert (output_directory / "Outside.png").exists()
+    assert not (output_directory / "Inside.png").exists()
+
+
+def test_tileset_option_single_sheet_file(
+    tmp_path: Path,
+) -> None:
+    """--tileset Inside_B.png converts exactly that one sheet."""
+
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    for sheet_type in ("A5", "B", "C"):
+        create_sheet(
+            input_directory,
+            f"Inside_{sheet_type}.png",
+        )
+
+    exit_code = main(
+        [
+            "--simple",
+            "--no-merge",
+            "--tileset",
+            "Inside_B.png",
+            str(input_directory),
+            str(output_directory),
+        ]
+    )
+
+    assert exit_code == 0
+
+    assert (output_directory / "Inside_B.png").exists()
+    assert (output_directory / "Inside_B.tres").exists()
+    assert not (output_directory / "Inside_A5.png").exists()
+    assert not (output_directory / "Inside_C.png").exists()
+
+
+def test_tileset_option_defaults_to_png_extension(
+    tmp_path: Path,
+) -> None:
+    """--tileset Inside_B (no extension) finds Inside_B.png."""
+
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    for sheet_type in ("A5", "B", "C"):
+        create_sheet(
+            input_directory,
+            f"Inside_{sheet_type}.png",
+        )
+
+    exit_code = main(
+        [
+            "--simple",
+            "--no-merge",
+            "--tileset",
+            "Inside_B",
+            str(input_directory),
+            str(output_directory),
+        ]
+    )
+
+    assert exit_code == 0
+
+    assert (output_directory / "Inside_B.png").exists()
+    assert (output_directory / "Inside_B.tres").exists()
+    assert not (output_directory / "Inside_A5.png").exists()
+
+
+def test_missing_tileset_displays_warning(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    """--tileset Ghost warns and converts nothing (exit code 1)."""
+
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    create_sheet(
+        input_directory,
+        "Inside_B.png",
+    )
+
+    exit_code = main(
+        [
+            "--simple",
+            "--tileset",
+            "Ghost",
+            str(input_directory),
+            str(output_directory),
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+
+    # The warning is rendered in the same warning panel as usage
+    # failures; panels wrap long lines, so flatten the output.
+    output = flatten(captured.out.replace("│", " "))
+
+    assert "Tileset 'Ghost' not found" in output
+    assert "Nothing was converted" in output
+
+    # The message sits inside a warning panel frame.
+    assert "┌" in captured.out
+    assert "└" in captured.out
+
+    # No output was generated for the missing tileset.
+    assert not output_directory.exists()

@@ -10,7 +10,13 @@ Create the virtual environment:
 python -m venv .venv
 ```
 
-Activate it and install the project:
+Activate it:
+
+```bash
+.\.venv\Scripts\activate
+```
+
+And install the project:
 
 ```bash
 python -m pip install -e .
@@ -217,6 +223,8 @@ The pipeline is split in three phases, orchestrated by `rpgmaker2godot.cli.main(
 * detects the dimensions, column/row count and tile size of every sheet;
 * collects non-fatal issues as warnings (e.g. an unsupported/invalid PNG) without aborting the whole scan;
 * raises `ValueError` if no supported sheet is found at all.
+
+By default every detected sheet is converted. Passing `--tileset NAME` restricts the run to a single tileset: the value may be a tileset family prefix (`--tileset world` converts every `world_*.png` sheet) or one exact sheet file (`--tileset world_B.png` — the `.png` extension is assumed when omitted, so `--tileset world_B` works too). When nothing in the input directory matches the value, a warning is displayed and nothing is converted (exit code 1).
 
 ```mermaid
 sequenceDiagram

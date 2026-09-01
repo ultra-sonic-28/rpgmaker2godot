@@ -112,7 +112,9 @@ BUILD_NUMBER = NUMBER_PLACEHOLDER
 
     $version = $versionMatch.Groups[1].Value
     $distDir = Join-Path $root "dist"
-    $releaseBaseName = "RpgMaker2Godot-win-x64-v${version}${number}"
+    # "v{VERSION}.{BUILD}" — e.g. v0.2.0.15 — so the build counter is
+    # visibly separated from the (dotted) version number.
+    $releaseBaseName = "RpgMaker2Godot-win-x64-v${version}.${number}"
     $zipPath = Join-Path $distDir "$releaseBaseName.zip"
     $shaPath = "$zipPath.sha256"
 

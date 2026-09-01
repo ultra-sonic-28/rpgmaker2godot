@@ -325,8 +325,8 @@ Every generation **automatically increments the numeric `build` entry** of the `
 
 Once the executable is built, the script **packages the GitHub release archive** into `dist\`:
 
-* `RpgMaker2Godot-win-x64-v{VERSION}{BUILD}.zip` — e.g. `RpgMaker2Godot-win-x64-v0.1.035.zip` — containing `rpgmaker2godot.exe` (additional assets such as sample tilesets can be added to the archive via the build script's staging step);
-* `RpgMaker2Godot-win-x64-v{VERSION}{BUILD}.zip.sha256` — its SHA256 checksum, in `<hash>  <filename>` format.
+* `RpgMaker2Godot-win-x64-v{VERSION}.{BUILD}.zip` — e.g. `RpgMaker2Godot-win-x64-v0.1.0.35.zip` — containing `rpgmaker2godot.exe` (additional assets such as sample tilesets can be added to the archive via the build script's staging step);
+* `RpgMaker2Godot-win-x64-v{VERSION}.{BUILD}.zip.sha256` — its SHA256 checksum, in `<hash>  <filename>` format.
 
 `VERSION` is the `[project].version` from `pyproject.toml` and `BUILD` the freshly incremented build number.
 

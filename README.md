@@ -118,6 +118,16 @@ And install the project with the development extras (`ruff` + `mypy`):
 python -m pip install -e ".[dev]"
 ```
 
+Alternatively, the activation and editable-install steps above can be
+performed with the `scripts/setup_dev.ps1` helper — it must be run
+from the project directory (`C:\My Program Files\rpgmaker2godot`) and
+displays an error message from anywhere else (it also reminds you to
+create the virtual environment if it is missing):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\setup_dev.ps1
+```
+
 Run:
 
 ```bash

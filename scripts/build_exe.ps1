@@ -32,9 +32,13 @@ try {
     # custom entry there. This is the only `build = <number>` line in
     # the file (the `build` extra in [project.optional-dependencies]
     # holds a list, so it cannot match).
+    #
+    # The `\r?` before `$` makes the pattern match CRLF files too:
+    # .NET's `$` matches at the `\n`, and a trailing carriage-return
+    # would otherwise stay inside the line and break `[ ]*$`.
     $buildMatch = [regex]::Match(
         $content,
-        '(?m)^(?<indent>[ ]*)build[ ]*=[ ]*(?<number>\d+)[ ]*$'
+        '(?m)^(?<indent>[ ]*)build[ ]*=[ ]*(?<number>\d+)[ ]*\r?$'
     )
 
     if ($buildMatch.Success) {
@@ -99,7 +103,7 @@ BUILD_NUMBER = NUMBER_PLACEHOLDER
     # build so it can be attached to a GitHub release as-is.
     $versionMatch = [regex]::Match(
         $content,
-        '(?m)^[ ]*version[ ]*=[ ]*"([^"]+)"[ ]*$'
+        '(?m)^[ ]*version[ ]*=[ ]*"([^"]+)"[ ]*\r?$'
     )
 
     if (-not $versionMatch.Success) {

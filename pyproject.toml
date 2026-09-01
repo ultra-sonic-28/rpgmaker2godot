@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rpgmaker2godot"
-version = "0.1.0"
+version = "0.2.0"
 
 description = "Convert RPG Maker MV/MZ tilesets to Godot resources."
 readme = "README.md"
@@ -40,7 +40,7 @@ where = ["src"]
 # Kept in a [tool.*] table on purpose: PEP 621 reserves the keys of
 # [project], and setuptools rejects any custom entry found there.
 [tool.rpgmaker2godot]
-build = 13
+build = 14
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

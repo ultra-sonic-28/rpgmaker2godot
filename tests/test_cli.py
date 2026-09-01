@@ -487,7 +487,7 @@ def test_missing_arguments_show_banner_then_usage_panel(
 
     # The usage failure follows, rendered inside a warning frame.
     assert (
-        "usage: rpgmaker2godot [-h] [--simple] [--tileset TILESET] [--no-merge] [--tolerance TOLERANCE] [--no-terrains] input output"
+        "usage: rpgmaker2godot [-h] [--mode {TILESET,CHARACTER}] [--simple] [--tileset TILESET] [--no-merge] [--tolerance TOLERANCE] [--no-terrains] input output"
         in output
     )
     assert (

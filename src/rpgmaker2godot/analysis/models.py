@@ -25,6 +25,34 @@ class SheetInfo:
 
 
 @dataclass(frozen=True)
+class CharacterSheetInfo:
+    """One detected character spritesheet file.
+
+    The frame size is derived from the image size: the width holds
+    exactly three frames and the height exactly nine rows (the fixed
+    character layout — see
+    :mod:`rpgmaker2godot.character.layout`).
+    """
+
+    path: Path
+    width: int
+    height: int
+    frame_width: int
+    frame_height: int
+    columns: int
+    rows: int
+
+
+@dataclass(frozen=True)
+class CharacterAnalysisResult:
+    """Analysis result for a directory of character spritesheets."""
+
+    input_directory: Path
+    sheets: tuple[CharacterSheetInfo, ...]
+    warnings: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class AnalysisResult:
     input_directory: Path
     version: RPGMakerVersion

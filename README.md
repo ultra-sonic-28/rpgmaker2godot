@@ -5,8 +5,9 @@ CLI tool written in Python 3.13+ to convert RPG Maker MV/MZ tilesets into Godot 
 ## Command-line options
 
 ```
-rpgmaker2godot [-h] [--simple] [--tileset TILESET] [--no-merge]
-               [--tolerance TOLERANCE] [--no-terrains] input output
+rpgmaker2godot [-h] [--mode {TILESET,CHARACTER}] [--simple]
+               [--tileset TILESET] [--no-merge] [--tolerance TOLERANCE]
+               [--no-terrains] input output
 ```
 
 Each option is described below with an example; `rpgmaker2godot --help`
@@ -34,11 +35,32 @@ created when missing.
 rpgmaker2godot --simple img/tilesets "C:/Godot/MyGame/assets/tilesets"
 ```
 
+### `--mode MODE`
+
+Selects what the input directory contains and which pipeline runs.
+The value is case-insensitive:
+
+* `TILESET` (default) — the directory holds RPG Maker MV/MZ
+  tilesheets, converted into Godot `TileSet` resources for maps
+  (this mode requires `--simple`);
+* `CHARACTER` — the directory holds character spritesheets
+  (`player-1.png`, `player-2.png`, …) storing their animations
+  natively (RPG Maker character sheets are **not** supported — they
+  have no `idle` rows); each one is converted into a Godot
+  `SpriteFrames` resource ready for an `AnimatedSprite2D`. See
+  [Character conversion](#character-conversion-mode) for the expected
+  layout.
+
+```bash
+rpgmaker2godot --mode CHARACTER img/characters output
+```
+
 ### `--simple`
 
 Selects the simple conversion mode (`A5`, `B`–`E`, plus the `A4`
 autotile unfolding) — the only mode currently supported, so the flag
-is required for every run.
+is required for every tileset run (`--mode TILESET`, the default).
+It is not used — and rejected — in `--mode CHARACTER`.
 
 ```bash
 rpgmaker2godot --simple img/tilesets output
@@ -46,13 +68,14 @@ rpgmaker2godot --simple img/tilesets output
 
 ### `--tileset TILESET`
 
-Restricts the conversion to a single tileset. The value is either a
-tileset family prefix (`Inside` converts every `Inside_*.png` sheet)
-or one exact sheet file (`Inside_B.png`; the `.png` extension is
-assumed when omitted, so `--tileset Inside_B` works too). Matching is
-case-insensitive. When nothing in the input directory matches, a
-warning is displayed and nothing is converted. Without the option,
-every tileset found in the input directory is converted.
+Restricts the conversion to a single tileset (TILESET mode only). The
+value is either a tileset family prefix (`Inside` converts every
+`Inside_*.png` sheet) or one exact sheet file (`Inside_B.png`; the
+`.png` extension is assumed when omitted, so `--tileset Inside_B`
+works too). Matching is case-insensitive. When nothing in the input
+directory matches, a warning is displayed and nothing is converted.
+Without the option, every tileset found in the input directory is
+converted.
 
 ```bash
 rpgmaker2godot --simple --tileset Outside img/tilesets output
@@ -159,11 +182,20 @@ python -m mypy
 ```text
 src/rpgmaker2godot/
 ├── cli.py                          # CLI entry point (main) — reads Tilesets.json to resolve collisions
-├── analysis/                       # PNG sheet detection (TilesetDetector)
+├── analysis/                       # PNG sheet detection (TilesetDetector, CharacterDetector)
 │   ├── detector.py                 # TilesetDetector: scans the input directory for RPG Maker sheets
 │   │                               #   (A4/A5/B/C/D/E.png), validates their dimensions against the tile
 │   │                               #   size and produces an AnalysisResult
+│   ├── character_detector.py       # CharacterDetector: scans the input directory for character
+│   │                               #   spritesheets (any *.png), validates the 3-column × 9-row layout
+│   │                               #   and produces a CharacterAnalysisResult
 │   └── models.py                   # SheetInfo, AnalysisResult, RPGMakerVersion — analysis data model
+│                                   #   (+ CharacterSheetInfo, CharacterAnalysisResult)
+├── character/                      # Character spritesheet conversion (--mode CHARACTER)
+│   ├── layout.py                   # Fixed 9-row layout (walk ×4, idle ×4, damaged) + playback defaults
+│   ├── models.py                   # CharacterFrame, CharacterAnimation, CharacterSpriteSheet,
+│   │                               #   CharacterConversionResult — internal character model
+│   └── spritesheet_builder.py      # CharacterSpriteSheetBuilder: layout rows → animations + frame regions
 ├── conversion/                     # AnalysisResult → internal model transformation
 │   └── converter.py                # SimpleConverter
 ├── tileset/                        # Reading/parsing of RPG Maker flags
@@ -201,8 +233,10 @@ src/rpgmaker2godot/
     ├── model.py                    # Godot models (GodotTileSet, etc.)
     ├── atlas/                      # atlas_builder.py, atlas_mapper.py
     ├── tileset/                    # collision.py (GodotTileCollision), tileset_builder.py
-    ├── resource/                   # resource.py, resource_serializer.py, resource_writer.py
-    ├── export/                     # simple.py (SimpleExporter — orchestrator)
+    ├── resource/                   # resource.py, resource_serializer.py, resource_writer.py, path.py
+    ├── spriteframes/               # models.py, serializer.py, writer.py — SpriteFrames .tres resources
+    ├── export/                     # simple.py (SimpleExporter — tilesets), characters.py
+    │                               #   (CharacterExporter — character spritesheets)
     └── collision/                  # tile_collision.py (has_collision — guards the semantic/geometry boundary)
 ```
 
@@ -441,3 +475,54 @@ sequenceDiagram
     end
     E-->>CLI: generated paths (atlas + resource)
 ```
+
+## Character conversion (`--mode CHARACTER`)
+
+Character spritesheets intentionally do **not** follow the sheets
+generated by RPG Maker (RPG Maker has no `idle` concept). Each
+character lives in its own file (e.g. `player-1.png`, `player-2.png`,
+…) and stores its animations natively, following the same fixed
+9-row grid with at most three frames per row:
+
+| Row | Animation  | Frames |
+|-----|------------|--------|
+| 1   | walk-down  | 3      |
+| 2   | walk-left  | 3      |
+| 3   | walk-right | 3      |
+| 4   | walk-up    | 3      |
+| 5   | idle-down  | 2      |
+| 6   | idle-left  | 2      |
+| 7   | idle-right | 2      |
+| 8   | idle-up    | 2      |
+| 9   | damaged    | 3      |
+
+Two-frame rows simply leave their third cell empty (transparent). The
+frame size is derived from the image size: the width holds exactly
+three frames and the height exactly nine rows, so a 144×432 px sheet
+stores 48×48 frames.
+
+A character spritesheet cannot be told apart from an arbitrary PNG by
+its name alone, so the processing is selected explicitly with
+`--mode CHARACTER` (tilesets remain the default `--mode TILESET`).
+The pipeline then runs in three steps:
+
+1. **Analyzing** — `CharacterDetector` scans every `.png` of the
+   input directory and validates the layout (width divisible by 3,
+   height divisible by 9). Invalid files are reported as warnings and
+   skipped, like in the tileset pipeline.
+2. **Building sprite frames** — `CharacterSpriteSheetBuilder` turns
+   each row into a `CharacterAnimation` following the layout table:
+   `walk-*` at 6 fps and `idle-*` at 2 fps (both looping), and
+   `damaged` at 8 fps, played once.
+3. **Exporting** — `CharacterExporter` copies the spritesheet PNG
+   into the output directory and writes one `<name>.tres` Godot
+   `SpriteFrames` resource — 23 `AtlasTexture` sub-resources for a
+   full sheet — ready to be assigned to an `AnimatedSprite2D`.
+
+```bash
+rpgmaker2godot --mode CHARACTER "C:/RPG Maker/MyProject/img/characters" "C:/Godot/MyGame/assets/characters"
+```
+
+The output directory therefore receives, per character:
+`<name>.png` (the copied spritesheet) and `<name>.tres` (the
+`SpriteFrames` resource referencing it through a `res://` path).

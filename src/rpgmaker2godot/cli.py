@@ -8,16 +8,20 @@ from typing import TextIO
 
 from PIL import Image
 
+from .analysis.character_detector import CharacterDetector
 from .analysis.detector import TilesetDetector
 from .analysis.models import AnalysisResult
+from .character.spritesheet_builder import CharacterSpriteSheetBuilder
 from .conversion.converter import SimpleConverter
+from .godot.export.characters import CharacterExporter
 from .godot.export.simple import SimpleExporter
 from .tileset.reader import TilesetsJsonReader
 from .tileset.resolver import TilePropertiesResolver
 from .utils.log import configure_logging
 from .utils.messages import display_program_banner, display_warning
 
-TOTAL_STEPS = 4
+TILESET_TOTAL_STEPS = 4
+CHARACTER_TOTAL_STEPS = 3
 
 _RESET = "\x1b[0m"
 
@@ -94,13 +98,14 @@ def _paint(
 def _print_step(
     step: int,
     label: str,
+    total: int,
 ) -> None:
     """Print a numbered pipeline step heading."""
 
     print()
     print(
         _paint(
-            f"[{step}/{TOTAL_STEPS}] {label}",
+            f"[{step}/{total}] {label}",
             _STEP_STYLE,
             sys.stdout,
         )
@@ -171,6 +176,274 @@ def _select_tileset(
     return replace(result, sheets=selected), None
 
 
+def _warn_ignored_tileset_options(
+    args: argparse.Namespace,
+) -> None:
+    """Warn that tileset-only options have no effect in CHARACTER mode."""
+
+    ignored = [
+        option
+        for option, enabled in (
+            ("--tileset", args.tileset is not None),
+            ("--no-merge", args.no_merge),
+            ("--no-terrains", args.no_terrains),
+            ("--tolerance", args.tolerance != 0),
+        )
+        if enabled
+    ]
+
+    if not ignored:
+        return
+
+    plural = "s" if len(ignored) > 1 else ""
+
+    message = (
+        f"Tileset-only option{plural} "
+        f"{' '.join(ignored)} ignored in --mode CHARACTER."
+    )
+
+    print(
+        f"  {_paint(message, _WARNING_STYLE, sys.stderr)}",
+        file=sys.stderr,
+    )
+
+
+def _run_character_mode(
+    args: argparse.Namespace,
+) -> int:
+    """Convert every character spritesheet of the input directory."""
+
+    detector = CharacterDetector()
+    result = detector.analyze(args.input)
+
+    _print_step(
+        1,
+        "Analyzing input directory",
+        CHARACTER_TOTAL_STEPS,
+    )
+
+    print(f"Input: {result.input_directory}")
+    print()
+    print("Sheets:")
+
+    for sheet_info in result.sheets:
+        print(
+            f"  {sheet_info.path.name}  "
+            f"{sheet_info.width}x{sheet_info.height}  "
+            f"({sheet_info.frame_width}x{sheet_info.frame_height} frames)"
+        )
+
+    if result.warnings:
+        print()
+        print("Warnings:")
+
+        for warning in result.warnings:
+            print(
+                f"  - {_paint(warning, _WARNING_STYLE, sys.stdout)}"
+            )
+
+    _print_step(
+        2,
+        "Building sprite frames",
+        CHARACTER_TOTAL_STEPS,
+    )
+
+    conversion = CharacterSpriteSheetBuilder().convert(result)
+
+    for sheet in conversion.sheets:
+        print(
+            f"  {sheet.name}: {len(sheet.animations)} animations, "
+            f"{sheet.frame_count} frames"
+        )
+
+    _print_step(
+        3,
+        "Exporting Godot resources",
+        CHARACTER_TOTAL_STEPS,
+    )
+
+    exporter = CharacterExporter()
+    generated = exporter.export(
+        conversion,
+        args.output,
+    )
+
+    for sheet in conversion.sheets:
+        print(
+            f"  {sheet.name}.png   "
+            f"{sheet.width}x{sheet.height} px "
+            f"({sheet.frame_width}x{sheet.frame_height} frames)"
+        )
+        print(
+            f"  {sheet.name}.tres  "
+            f"{len(sheet.animations)} animations "
+            f"({sheet.frame_count} frames)"
+        )
+
+    print()
+    print(
+        _paint("Generated:", _SUCCESS_STYLE, sys.stdout)
+    )
+
+    for path in generated:
+        print(f"  {path.name}")
+
+    return 0
+
+
+def _run_tileset_mode(
+    args: argparse.Namespace,
+) -> int:
+    """Convert every (or the selected) tileset of the input directory."""
+
+    detector = TilesetDetector()
+    result = detector.analyze(args.input)
+
+    if args.tileset is not None:
+        result, warning = _select_tileset(
+            result,
+            args.tileset,
+        )
+
+        if warning is not None:
+            display_warning(warning)
+
+            return 1
+
+    _print_step(1, "Analyzing input directory", TILESET_TOTAL_STEPS)
+
+    print(f"Input: {result.input_directory}")
+    print(f"Tile size: {result.tile_width}x{result.tile_height}")
+    print()
+    print("Sheets:")
+
+    groups: dict[str, list] = defaultdict(list)
+
+    for sheet in result.sheets:
+        groups[sheet.prefix].append(sheet)
+
+    for prefix, sheets in sorted(groups.items()):
+        print()
+        print(f"  {prefix or '(no prefix)'}")
+
+        for sheet in sorted(
+            sheets,
+            key=lambda sheet: sheet.sheet_type.order,
+        ):
+            print(
+                f"    {sheet.sheet_type.value}.png "
+                f"{sheet.width:>4}x{sheet.height:<4} "
+                f"({sheet.columns}x{sheet.rows} tiles)"
+            )
+
+    if result.warnings:
+        print()
+        print("Warnings:")
+
+        for warning in result.warnings:
+            print(
+                f"  - {_paint(warning, _WARNING_STYLE, sys.stdout)}"
+            )
+
+    _print_step(2, "Resolving collision flags", TILESET_TOTAL_STEPS)
+
+    tilesets_json_path = args.input / "Tilesets.json"
+
+    if tilesets_json_path.is_file():
+        tileset_flags = TilesetsJsonReader().read_flags(
+            tilesets_json_path,
+        )
+
+        converter = SimpleConverter(
+            tile_properties_resolver=(
+                TilePropertiesResolver(
+                    {
+                        flags.name: flags
+                        for flags in tileset_flags
+                    }
+                )
+            ),
+            no_merge=args.no_merge,
+            a4_pixel_tolerance=args.tolerance,
+        )
+
+        print(
+            f"  Resolved collision from {tilesets_json_path.name}"
+        )
+    else:
+        print(
+            f"  {_paint('Tilesets.json not found: generated tiles will have no collision.', _WARNING_STYLE, sys.stderr)}",
+            file=sys.stderr,
+        )
+
+        converter = SimpleConverter(
+            no_merge=args.no_merge,
+            a4_pixel_tolerance=args.tolerance,
+        )
+
+    _print_step(3, "Converting tiles", TILESET_TOTAL_STEPS)
+
+    conversion = converter.convert(result)
+
+    for tileset in conversion.tilesets:
+        tile_count = sum(
+            len(sheet.tiles)
+            for sheet in tileset.sheets
+        )
+
+        sheet_count = len(tileset.sheets)
+        tile_word = "tile" if tile_count == 1 else "tiles"
+        sheet_word = "sheet" if sheet_count == 1 else "sheets"
+
+        print(
+            f"  {tileset.name}: "
+            f"{tile_count} {tile_word} from "
+            f"{sheet_count} {sheet_word}"
+        )
+
+    _print_step(4, "Exporting Godot resources", TILESET_TOTAL_STEPS)
+
+    exporter = SimpleExporter(
+        terrains=not args.no_terrains,
+    )
+    generated = exporter.export(
+        conversion,
+        args.output,
+    )
+
+    for tileset in conversion.tilesets:
+        atlas_path = args.output / f"{tileset.name}.png"
+
+        with Image.open(atlas_path) as image:
+            width, height = image.size
+
+        tile_width = tileset.sheets[0].tile_width
+        tile_height = tileset.sheets[0].tile_height
+
+        columns = width // tile_width
+        rows = height // tile_height
+
+        print(
+            f"  {tileset.name}.png   "
+            f"{width}x{height} px "
+            f"({columns}x{rows} tiles)"
+        )
+        print(
+            f"  {tileset.name}.tres  "
+            f"{columns}x{rows} tiles"
+        )
+
+    print()
+    print(
+        _paint("Generated:", _SUCCESS_STYLE, sys.stdout)
+    )
+
+    for path in generated:
+        print(f"  {path.name}")
+
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _Parser(
         prog="rpgmaker2godot",
@@ -180,13 +453,27 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "input",
         type=Path,
-        help="Input directory containing RPG Maker tilesheets.",
+        help="Input directory containing the files to convert.",
     )
 
     parser.add_argument(
         "output",
         type=Path,
         help="Output directory.",
+    )
+
+    parser.add_argument(
+        "--mode",
+        type=str.upper,
+        choices=("TILESET", "CHARACTER"),
+        default="TILESET",
+        help=(
+            "Processing mode: TILESET converts RPG Maker tilesheets "
+            "into Godot TileSet resources for maps (default), "
+            "CHARACTER converts character spritesheets (player-1.png "
+            "style files, NOT RPG Maker character sheets) into Godot "
+            "SpriteFrames resources."
+        ),
     )
 
     parser.add_argument(
@@ -200,11 +487,12 @@ def main(argv: list[str] | None = None) -> int:
         metavar="TILESET",
         default=None,
         help=(
-            "Convert only the named tileset: either a single sheet "
-            "file (e.g. Inside_B, the .png extension is assumed when "
-            "omitted) or a tileset family by prefix (e.g. Inside "
-            "converts every Inside_*.png sheet). When omitted, every "
-            "tileset found in the input directory is converted."
+            "TILESET mode only. Convert only the named tileset: "
+            "either a single sheet file (e.g. Inside_B, the .png "
+            "extension is assumed when omitted) or a tileset family "
+            "by prefix (e.g. Inside converts every Inside_*.png "
+            "sheet). When omitted, every tileset found in the input "
+            "directory is converted."
         ),
     )
 
@@ -257,173 +545,47 @@ def main(argv: list[str] | None = None) -> int:
 
         return 2
 
-    if not args.simple:
-        display_warning(
-            _format_usage_error(
-                parser,
-                "Only --simple mode is currently supported.",
-            ),
-        )
+    character_mode = args.mode == "CHARACTER"
 
-        return 2
+    if character_mode:
+        if args.simple:
+            display_warning(
+                _format_usage_error(
+                    parser,
+                    "--simple applies to tileset conversion only.",
+                ),
+            )
 
-    if args.tolerance < 0:
-        display_warning(
-            _format_usage_error(
-                parser,
-                "--tolerance must be >= 0.",
-            ),
-        )
+            return 2
 
-        return 2
+        _warn_ignored_tileset_options(args)
+
+    else:
+        if not args.simple:
+            display_warning(
+                _format_usage_error(
+                    parser,
+                    "Only --simple mode is currently supported.",
+                ),
+            )
+
+            return 2
+
+        if args.tolerance < 0:
+            display_warning(
+                _format_usage_error(
+                    parser,
+                    "--tolerance must be >= 0.",
+                ),
+            )
+
+            return 2
 
     try:
-        detector = TilesetDetector()
-        result = detector.analyze(args.input)
+        if character_mode:
+            return _run_character_mode(args)
 
-        if args.tileset is not None:
-            result, warning = _select_tileset(
-                result,
-                args.tileset,
-            )
-
-            if warning is not None:
-                display_warning(warning)
-
-                return 1
-
-        _print_step(1, "Analyzing input directory")
-
-        print(f"Input: {result.input_directory}")
-        print(f"Tile size: {result.tile_width}x{result.tile_height}")
-        print()
-        print("Sheets:")
-
-        groups: dict[str, list] = defaultdict(list)
-
-        for sheet in result.sheets:
-            groups[sheet.prefix].append(sheet)
-
-        for prefix, sheets in sorted(groups.items()):
-            print()
-            print(f"  {prefix or '(no prefix)'}")
-
-            for sheet in sorted(
-                sheets,
-                key=lambda sheet: sheet.sheet_type.order,
-            ):
-                print(
-                    f"    {sheet.sheet_type.value}.png "
-                    f"{sheet.width:>4}x{sheet.height:<4} "
-                    f"({sheet.columns}x{sheet.rows} tiles)"
-                )
-
-        if result.warnings:
-            print()
-            print("Warnings:")
-
-            for warning in result.warnings:
-                print(
-                    f"  - {_paint(warning, _WARNING_STYLE, sys.stdout)}"
-                )
-
-        _print_step(2, "Resolving collision flags")
-
-        tilesets_json_path = args.input / "Tilesets.json"
-
-        if tilesets_json_path.is_file():
-            tileset_flags = TilesetsJsonReader().read_flags(
-                tilesets_json_path,
-            )
-
-            converter = SimpleConverter(
-                tile_properties_resolver=(
-                    TilePropertiesResolver(
-                        {
-                            flags.name: flags
-                            for flags in tileset_flags
-                        }
-                    )
-                ),
-                no_merge=args.no_merge,
-                a4_pixel_tolerance=args.tolerance,
-            )
-
-            print(
-                f"  Resolved collision from {tilesets_json_path.name}"
-            )
-        else:
-            print(
-                f"  {_paint('Tilesets.json not found: generated tiles will have no collision.', _WARNING_STYLE, sys.stderr)}",
-                file=sys.stderr,
-            )
-
-            converter = SimpleConverter(
-                no_merge=args.no_merge,
-                a4_pixel_tolerance=args.tolerance,
-            )
-
-        _print_step(3, "Converting tiles")
-
-        conversion = converter.convert(result)
-
-        for tileset in conversion.tilesets:
-            tile_count = sum(
-                len(sheet.tiles)
-                for sheet in tileset.sheets
-            )
-
-            sheet_count = len(tileset.sheets)
-            tile_word = "tile" if tile_count == 1 else "tiles"
-            sheet_word = "sheet" if sheet_count == 1 else "sheets"
-
-            print(
-                f"  {tileset.name}: "
-                f"{tile_count} {tile_word} from "
-                f"{sheet_count} {sheet_word}"
-            )
-
-        _print_step(4, "Exporting Godot resources")
-
-        exporter = SimpleExporter(
-            terrains=not args.no_terrains,
-        )
-        generated = exporter.export(
-            conversion,
-            args.output,
-        )
-
-        for tileset in conversion.tilesets:
-            atlas_path = args.output / f"{tileset.name}.png"
-
-            with Image.open(atlas_path) as image:
-                width, height = image.size
-
-            tile_width = tileset.sheets[0].tile_width
-            tile_height = tileset.sheets[0].tile_height
-
-            columns = width // tile_width
-            rows = height // tile_height
-
-            print(
-                f"  {tileset.name}.png   "
-                f"{width}x{height} px "
-                f"({columns}x{rows} tiles)"
-            )
-            print(
-                f"  {tileset.name}.tres  "
-                f"{columns}x{rows} tiles"
-            )
-
-        print()
-        print(
-            _paint("Generated:", _SUCCESS_STYLE, sys.stdout)
-        )
-
-        for path in generated:
-            print(f"  {path.name}")
-
-        return 0
+        return _run_tileset_mode(args)
 
     except (
         FileNotFoundError,
@@ -435,6 +597,7 @@ def main(argv: list[str] | None = None) -> int:
             _paint(f"Error: {error}", _ERROR_STYLE, sys.stderr),
             file=sys.stderr,
         )
+
         return 1
 
 

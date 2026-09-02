@@ -64,6 +64,7 @@ renderer/rendering_method.mobile="gl_compatibility"
 def write_validation_script(
     project_directory: Path,
     *,
+    resource_path: str = "res://generated/Inside.tres",
     expected_atlas_size: tuple[int, int] = (96, 288),
     expected_columns: int = 2,
     expected_rows: int = 6,
@@ -461,7 +462,7 @@ func validate_collision_free(
 
 
 func _initialize() -> void:
-    var resource = load("res://generated/Inside.tres")
+    var resource = load("{resource_path}")
 
     if resource == null:
         fail("Failed to load generated TileSet")

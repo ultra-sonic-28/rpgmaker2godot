@@ -85,8 +85,11 @@ rpgmaker2godot --simple --tileset Outside img/tilesets output
 
 Keeps the source sheets split: exports one PNG atlas and one `.tres`
 per input sheet (`Inside_A5.png` + `Inside_A5.tres`, `Inside_B.png` +
-`Inside_B.tres`, …) instead of merging the sheets sharing a prefix
-into a single stacked output (the default behaviour).
+`Inside_B.tres`, …) instead of the default **merging** behaviour, which
+splits the sheets sharing a prefix into two stacked outputs: the
+autotile sheets (`A1`–`A4`, only `A4` handled today) merge into
+`<prefix>_Autotile`, while the normal sheets (`A5`, `B`–`E`) merge into
+`<prefix>`.
 
 ```bash
 rpgmaker2godot --simple --no-merge img/tilesets output
@@ -441,9 +444,9 @@ sequenceDiagram
 
 #### 2. Conversion — `conversion/`, `tileset/`
 
-`SimpleConverter.convert()` turns the `AnalysisResult` into the internal, immutable `ConversionResult` model. Sheets sharing the same filename prefix are grouped into one `Tileset` and ordered by their canonical stacking order (A4, A5, B, C, D, E).
+`SimpleConverter.convert()` turns the `AnalysisResult` into the internal, immutable `ConversionResult` model. Sheets sharing the same filename prefix are grouped and ordered by their canonical stacking order (A4, A5, B, C, D, E).
 
-This prefix grouping is the default **merging** behaviour: every sheet sharing a prefix ends up stacked in a single atlas/`.tres`. Passing `--no-merge` keeps the source sheet split instead — each detected sheet becomes its own `Tileset`, named after the sheet file itself (so `world_B.png` yields a `world_B` tileset), and the export step then emits one `<sheet>.png` + `<sheet>.tres` per input sheet.
+This prefix grouping is the default **merging** behaviour, and it splits each prefix into two output tilesets: the **autotile sheets** (`A1`–`A4` — only `A4` is handled today) stack into a `<prefix>_Autotile` tileset (e.g. `Inside_Autotile`), while the **normal sheets** (`A5`, `B`–`E`) stack into a `<prefix>` tileset (e.g. `Inside`), exported after the autotile one. Each output tileset becomes its own atlas/`.tres`; the `TileRef`s keep the plain prefix as their RPG tileset name so collision lookup against `Tilesets.json` is unaffected. When `A1`–`A3` unfolding lands, those sheets simply join the `<prefix>_Autotile` group. Passing `--no-merge` keeps the source sheet split instead — each detected sheet becomes its own `Tileset`, named after the sheet file itself (so `world_B.png` yields a `world_B` tileset), and the export step then emits one `<sheet>.png` + `<sheet>.tres` per input sheet.
 
 For every sheet, one `Tile` is created per cell — except A4, which is *unfolded*:
 
@@ -459,7 +462,7 @@ sequenceDiagram
     participant R as TilePropertiesResolver
 
     CLI->>C: convert(analysis)
-    C-->>C: group sheets by prefix → Tileset(s),<br/>ordered by SheetType.order
+    C-->>C: group sheets by prefix, split autotile (A1–A4) vs<br/>normal (A5, B–E) → Tileset(s) ordered by SheetType.order
     loop For each sheet
         alt A4 sheet (autotile unfolding)
             Note over C: 2304 raw variants → graphically distinct tiles only<br/>TileRef.index = kind × 48 + shape (first occurrence)

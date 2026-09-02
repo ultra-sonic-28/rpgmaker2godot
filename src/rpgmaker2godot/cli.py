@@ -592,8 +592,9 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help=(
             "Keep the source sheet split: export one PNG atlas and one "
-            ".tres per input sheet instead of merging them into a single "
-            "output (default: merge sheets sharing a prefix)."
+            ".tres per input sheet instead of grouping the sheets "
+            "sharing a prefix into a single stacked output (default: "
+            "merge)."
         ),
     )
 

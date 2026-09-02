@@ -23,6 +23,27 @@ class SheetType(Enum):
 
         return _SHEET_ORDER[self]
 
+    @property
+    def is_autotile(self) -> bool:
+        """Whether this sheet belongs to the autotile family (A1-A4).
+
+        Autotile sheets hold raw material that the engine composes from
+        four 24x24 quarters per tile. The converter merges them into
+        their own ``<prefix>_Autotile`` output tileset, separate from
+        the normal sheets. Only A4 is currently handled by the
+        converter; A1-A3 are added to :data:`_AUTOTILE_SHEET_TYPES`
+        when their unfolding is implemented, and the merge process
+        picks them up automatically.
+        """
+
+        return self in _AUTOTILE_SHEET_TYPES
+
+
+_AUTOTILE_SHEET_TYPES: frozenset[SheetType] = frozenset(
+    # A1, A2 and A3 join this set when the converter learns to unfold
+    # them; until then only A4 is an autotile sheet type.
+    {SheetType.A4},
+)
 
 _SHEET_ORDER: dict[SheetType, int] = {
     SheetType.A4: 0,

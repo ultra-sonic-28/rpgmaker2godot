@@ -116,6 +116,54 @@ def test_simple_cli_exports_tileset(
     assert "Inside.tres  2x6 tiles" in captured.out
 
 
+def test_simple_cli_merge_exports_autotile_and_normal_outputs(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    """Default merge mode exports <prefix>_Autotile + <prefix> outputs.
+
+    The A4 sheet merges into its own ``Inside_Autotile`` atlas while
+    the normal sheet keeps the plain ``Inside`` name.
+    """
+
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    create_sheet(
+        input_directory,
+        "Inside_A4.png",
+        size=(768, 720),
+        color=(90, 90, 90, 255),
+    )
+
+    create_sheet(
+        input_directory,
+        "Inside_B.png",
+        color=(0, 255, 0, 255),
+    )
+
+    exit_code = main(
+        [
+            "--simple",
+            str(input_directory),
+            str(output_directory),
+        ]
+    )
+
+    assert exit_code == 0
+
+    for stem in ("Inside_Autotile", "Inside"):
+        assert (output_directory / f"{stem}.png").exists()
+        assert (output_directory / f"{stem}.tres").exists()
+
+    captured = capsys.readouterr()
+
+    # The autotile sheet collapses to a single unique tile; the B
+    # sheet keeps its four tiles.
+    assert "Inside_Autotile: 1 tile from 1 sheet" in captured.out
+    assert "Inside: 4 tiles from 1 sheet" in captured.out
+
+
 def test_simple_cli_exports_tileset_no_terrains(
     tmp_path: Path,
     capsys,

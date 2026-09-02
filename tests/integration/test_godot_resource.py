@@ -589,16 +589,18 @@ def test_generated_a4_tileset_loads_in_godot(
 
     write_project(project_directory)
 
-    generated_png = generated_directory / "Inside.png"
+    # The A4 sheet alone forms the <prefix>_Autotile merged output.
+    generated_png = generated_directory / "Inside_Autotile.png"
     assert generated_png.exists()
     assert generated_png.stat().st_size > 0
 
-    generated_tres = generated_directory / "Inside.tres"
+    generated_tres = generated_directory / "Inside_Autotile.tres"
     assert generated_tres.exists()
     assert generated_tres.stat().st_size > 0
 
     script_path = write_validation_script(
         project_directory,
+        resource_path="res://generated/Inside_Autotile.tres",
         expected_atlas_size=(768, 4608),
         expected_columns=16,
         expected_rows=96,
@@ -706,6 +708,7 @@ def test_generated_a4_tileset_terrains_load_in_godot(
 
     script_path = write_validation_script(
         project_directory,
+        resource_path="res://generated/Inside_Autotile.tres",
         expected_atlas_size=(768, 4608),
         expected_columns=16,
         expected_rows=96,

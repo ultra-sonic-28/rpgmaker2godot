@@ -545,8 +545,16 @@ def test_a4_pixel_tolerance_respects_collision(tmp_path: Path) -> None:
     )
 
 
-def test_groups_a4_before_a5(tmp_path: Path) -> None:
-    """A4 walls must be stacked beneath A5 ground and B-E overlays."""
+def test_groups_a4_into_a_separate_autotile_tileset(
+    tmp_path: Path,
+) -> None:
+    """Merge mode splits a prefix into autotile and normal tilesets.
+
+    The autotile sheets (A1-A4; only A4 is handled today) stack into
+    their own ``<prefix>_Autotile`` output, exported before the normal
+    sheets (A5, B-E) which keep the plain ``<prefix>`` name — autotiles
+    render beneath the other layers.
+    """
 
     a4_path = tmp_path / "Inside_A4.png"
 
@@ -560,13 +568,72 @@ def test_groups_a4_before_a5(tmp_path: Path) -> None:
 
     result = SimpleConverter().convert(analysis)
 
-    tileset = result.tilesets[0]
+    assert [tileset.name for tileset in result.tilesets] == [
+        "Inside_Autotile",
+        "Inside",
+    ]
 
-    assert [sheet.sheet_type for sheet in tileset.sheets] == [
-        SheetType.A4,
+    autotile_tileset, normal_tileset = result.tilesets
+
+    assert [
+        sheet.sheet_type for sheet in autotile_tileset.sheets
+    ] == [SheetType.A4]
+
+    assert [
+        sheet.sheet_type for sheet in normal_tileset.sheets
+    ] == [
         SheetType.A5,
         SheetType.B,
     ]
+
+    # Every tile still references the RPG tileset named after the
+    # prefix, so collision lookup against Tilesets.json keeps working
+    # even though the output tileset carries the _Autotile suffix.
+    for tileset in result.tilesets:
+        for sheet in tileset.sheets:
+            for tile in sheet.tiles:
+                assert tile.ref.tileset == "Inside"
+
+
+def test_merge_names_the_autotile_tileset_after_the_prefix(
+    tmp_path: Path,
+) -> None:
+    """A prefix whose only sheet is A4 exports Inside_Autotile alone."""
+
+    a4_path = tmp_path / "Inside_A4.png"
+
+    write_a4_sheet(a4_path)
+
+    analysis = make_analysis(
+        make_sheet("Inside", SheetType.A4, 768, 720, path=a4_path),
+    )
+
+    result = SimpleConverter().convert(analysis)
+
+    assert len(result.tilesets) == 1
+
+    tileset = result.tilesets[0]
+
+    assert tileset.name == "Inside_Autotile"
+    assert tileset.sheets[0].sheet_type == SheetType.A4
+
+
+def test_merge_without_prefix_names_the_autotile_tileset_autotile(
+    tmp_path: Path,
+) -> None:
+    """A prefix-less A4 sheet exports an ``Autotile`` tileset."""
+
+    a4_path = tmp_path / "A4.png"
+
+    write_a4_sheet(a4_path)
+
+    analysis = make_analysis(
+        make_sheet("", SheetType.A4, 768, 720, path=a4_path),
+    )
+
+    result = SimpleConverter().convert(analysis)
+
+    assert [tileset.name for tileset in result.tilesets] == ["Autotile"]
 
 
 def test_groups_sheets_into_tilesets() -> None:
@@ -703,6 +770,26 @@ def test_no_merge_keeps_ref_tileset_equal_to_prefix() -> None:
     for tileset in result.tilesets:
         for tile in tileset.sheets[0].tiles:
             assert tile.ref.tileset == "Inside"
+
+
+def test_no_merge_keeps_a4_sheet_split(tmp_path: Path) -> None:
+    """--no-merge never creates the merged ``_Autotile`` output."""
+
+    a4_path = tmp_path / "Inside_A4.png"
+
+    write_a4_sheet(a4_path)
+
+    analysis = make_analysis(
+        make_sheet("Inside", SheetType.A4, 768, 720, path=a4_path),
+        make_sheet("Inside", SheetType.B, 768, 768),
+    )
+
+    result = SimpleConverter(no_merge=True).convert(analysis)
+
+    assert [tileset.name for tileset in result.tilesets] == [
+        "Inside_A4",
+        "Inside_B",
+    ]
 
 
 def test_preserves_source_path() -> None:

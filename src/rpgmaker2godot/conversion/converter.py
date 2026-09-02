@@ -27,6 +27,25 @@ from rpgmaker2godot.tileset.collision import tile_properties_to_collision
 from rpgmaker2godot.tileset.resolver import TilePropertiesResolver
 from rpgmaker2godot.tileset.tile_id import tile_to_tile_id
 
+# Suffix of the output tileset that stacks the autotile sheets
+# (A1-A4) of one prefix, e.g. ``Inside`` -> ``Inside_Autotile``. The
+# normal sheets (A5, B-E) keep the plain prefix as their output name.
+AUTOTILE_TILESET_SUFFIX = "_Autotile"
+
+
+def autotile_tileset_name(prefix: str) -> str:
+    """Output tileset name stacking one prefix's autotile sheets.
+
+    ``Inside`` exports its autotile sheets (A1-A4) as
+    ``Inside_Autotile`` while its normal sheets (A5, B-E) keep the
+    plain ``Inside`` name. A sheet without prefix exports ``Autotile``.
+    """
+
+    if not prefix:
+        return AUTOTILE_TILESET_SUFFIX.lstrip("_")
+
+    return f"{prefix}{AUTOTILE_TILESET_SUFFIX}"
+
 
 class SimpleConverter:
     """Convert an AnalysisResult into the internal representation."""
@@ -57,6 +76,20 @@ class SimpleConverter:
         self._a4_pixel_tolerance = a4_pixel_tolerance
 
     def convert(self, analysis: AnalysisResult) -> ConversionResult:
+        """Convert the analysis into output tilesets.
+
+        In merge mode (the default), the sheets sharing a filename
+        prefix split into two output tilesets: the autotile sheets
+        (A1-A4) stack into ``<prefix>_Autotile`` (``Autotile`` without a
+        prefix) while the normal sheets (A5, B-E) stack into
+        ``<prefix>``. ``--no-merge`` keeps one output tileset per input
+        sheet instead, named after the sheet file.
+
+        Either way, every ``TileRef`` keeps the RPG tileset name (the
+        prefix) so collision lookup against ``Tilesets.json`` — which
+        names tilesets by prefix — keeps working.
+        """
+
         tilesets: list[Tileset] = []
 
         if self._no_merge:
@@ -82,24 +115,42 @@ class SimpleConverter:
             for sheet_info in analysis.sheets:
                 grouped_sheets[sheet_info.prefix].append(sheet_info)
 
-            for name, sheet_infos in sorted(grouped_sheets.items()):
-                sheets = tuple(
-                    self._convert_sheet(
-                        name,
-                        sheet_info,
-                    )
-                    for sheet_info in sorted(
-                        sheet_infos,
-                        key=lambda info: info.sheet_type.order,
-                    )
-                )
+            for prefix, sheet_infos in sorted(grouped_sheets.items()):
+                autotile_infos: list[SheetInfo] = []
+                normal_infos: list[SheetInfo] = []
 
-                tilesets.append(
-                    Tileset(
-                        name=name,
-                        sheets=sheets,
+                # Canonical stacking order inside each output tileset:
+                # the autotile sheets (A1-A4) first, then A5 and B-E.
+                for sheet_info in sorted(
+                    sheet_infos,
+                    key=lambda info: info.sheet_type.order,
+                ):
+                    if sheet_info.sheet_type.is_autotile:
+                        autotile_infos.append(sheet_info)
+                    else:
+                        normal_infos.append(sheet_info)
+
+                if autotile_infos:
+                    tilesets.append(
+                        Tileset(
+                            name=autotile_tileset_name(prefix),
+                            sheets=tuple(
+                                self._convert_sheet(prefix, sheet_info)
+                                for sheet_info in autotile_infos
+                            ),
+                        )
                     )
-                )
+
+                if normal_infos:
+                    tilesets.append(
+                        Tileset(
+                            name=prefix,
+                            sheets=tuple(
+                                self._convert_sheet(prefix, sheet_info)
+                                for sheet_info in normal_infos
+                            ),
+                        )
+                    )
 
         return ConversionResult(
             tilesets=tuple(tilesets),
@@ -107,19 +158,29 @@ class SimpleConverter:
 
     def _convert_sheet(
         self,
-        tileset_name: str,
+        rpg_tileset_name: str,
         sheet_info: SheetInfo,
     ) -> Sheet:
+        """Convert one sheet into an internal Sheet.
+
+        ``rpg_tileset_name`` is the RPG Maker tileset name (the
+        filename prefix, e.g. ``Inside``) stored on every ``TileRef``
+        so the properties/collision lookup against ``Tilesets.json``
+        keeps working. It may differ from the output ``Tileset`` name:
+        merge mode renames the autotile outputs to
+        ``<prefix>_Autotile``.
+        """
+
         if sheet_info.sheet_type == SheetType.A4:
             return self._convert_a4_sheet(
-                tileset_name,
+                rpg_tileset_name,
                 sheet_info,
             )
 
         tiles = tuple(
             self._resolve_tile_properties(tile)
             for tile in self._sheet_tiles(
-                tileset_name,
+                rpg_tileset_name,
                 sheet_info,
             )
         )
@@ -138,7 +199,7 @@ class SimpleConverter:
 
     def _convert_a4_sheet(
         self,
-        tileset_name: str,
+        rpg_tileset_name: str,
         sheet_info: SheetInfo,
     ) -> Sheet:
         """Convert an A4 wall-autotile sheet into its unfolded tiles.
@@ -180,7 +241,7 @@ class SimpleConverter:
                 a4_unique_tiles(
                     source,
                     tolerance=self._a4_pixel_tolerance,
-                    dedup_key=self._a4_dedup_key(tileset_name),
+                    dedup_key=self._a4_dedup_key(rpg_tileset_name),
                 )
             )
         finally:
@@ -198,7 +259,7 @@ class SimpleConverter:
             y = (slot // A4_PACK_COLUMNS) * 48
 
             tile = self._create_tile(
-                tileset_name=tileset_name,
+                rpg_tileset_name=rpg_tileset_name,
                 sheet_type=SheetType.A4,
                 index=index,
                 column=local_kind % 8,
@@ -229,7 +290,7 @@ class SimpleConverter:
 
     def _a4_dedup_key(
         self,
-        tileset_name: str,
+        rpg_tileset_name: str,
     ) -> Callable[[int, bytes], TileCollision] | None:
         """Build the duplicate-identity hook for the A4 pixel dedup.
 
@@ -255,7 +316,7 @@ class SimpleConverter:
         ) -> TileCollision:
             tile = Tile(
                 ref=TileRef(
-                    tileset=tileset_name,
+                    tileset=rpg_tileset_name,
                     sheet_type=SheetType.A4,
                     index=index,
                 ),
@@ -278,7 +339,7 @@ class SimpleConverter:
 
     def _sheet_tiles(
         self,
-        tileset_name: str,
+        rpg_tileset_name: str,
         sheet_info: SheetInfo,
     ) -> Iterator[Tile]:
         """Stream the tiles of a regular (non-A4) sheet grid."""
@@ -299,7 +360,7 @@ class SimpleConverter:
 
         for index, (x, y, width, height, column, row) in enumerate(geometry):
             yield self._create_tile(
-                tileset_name=tileset_name,
+                rpg_tileset_name=rpg_tileset_name,
                 sheet_type=sheet_info.sheet_type,
                 index=index,
                 column=column,
@@ -321,7 +382,7 @@ class SimpleConverter:
 
     @staticmethod
     def _create_tile(
-        tileset_name: str,
+        rpg_tileset_name: str,
         sheet_type: SheetType,
         index: int,
         column: int,
@@ -333,7 +394,7 @@ class SimpleConverter:
     ) -> Tile:
         return Tile(
             ref=TileRef(
-                tileset=tileset_name,
+                tileset=rpg_tileset_name,
                 sheet_type=sheet_type,
                 index=index,
             ),

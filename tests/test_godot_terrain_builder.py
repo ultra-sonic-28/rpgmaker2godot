@@ -4,8 +4,8 @@ from pathlib import Path
 
 from PIL import Image
 
-from rpgmaker2godot.atlas.builder import AtlasBuilder
 from rpgmaker2godot.analysis.detector import TilesetDetector
+from rpgmaker2godot.atlas.builder import AtlasBuilder
 from rpgmaker2godot.conversion.converter import SimpleConverter
 from rpgmaker2godot.godot.atlas.atlas_mapper import GodotAtlasMapper
 from rpgmaker2godot.godot.terrain.terrain_builder import GodotTerrainBuilder

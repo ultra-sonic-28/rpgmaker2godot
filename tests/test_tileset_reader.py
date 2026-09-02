@@ -61,7 +61,7 @@ def test_rejects_non_array_root(tmp_path) -> None:
     path.write_text("{}", encoding="utf-8")
 
     with pytest.raises(
-        ValueError,
+        TypeError,
         match="Tilesets.json root must be a JSON array",
     ):
         TilesetsJsonReader().read_flags(path)
@@ -84,7 +84,7 @@ def test_rejects_invalid_flag(tmp_path) -> None:
     )
 
     with pytest.raises(
-        ValueError,
+        TypeError,
         match="Invalid flag",
     ):
         TilesetsJsonReader().read_flags(path)

@@ -3,7 +3,7 @@ from dataclasses import replace
 import pytest
 
 from rpgmaker2godot.godot.atlas.atlas_builder import GodotAtlasSourceBuilder
-from rpgmaker2godot.godot.model import GodotAtlasCell, GodotAtlasTileResource
+from rpgmaker2godot.godot.model import GodotAtlasTileResource
 from rpgmaker2godot.godot.resource.resource import GodotAtlasSourceResource
 from tests.helpers.godot_atlas import make_godot_atlas_source
 

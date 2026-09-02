@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Self
 
 from PIL import Image
 
@@ -23,7 +24,7 @@ class ImageSource:
             self._image.close()
             self._image = None
 
-    def __enter__(self) -> "ImageSource":
+    def __enter__(self) -> Self:
         self.open()
         return self
 

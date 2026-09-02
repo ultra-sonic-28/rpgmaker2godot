@@ -230,7 +230,7 @@ def write_validation_script(
             pairs = list(zip(points[::2], points[1::2]))
             appends = "\n".join(
                 f"    expected_points_{column}_{row}.append("
-                f"Vector2({repr(float(x))}, {repr(float(y))}))"
+                f"Vector2({float(x)!r}, {float(y)!r}))"
                 for x, y in pairs
             )
 

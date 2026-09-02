@@ -8,6 +8,6 @@ __all__ = [
     "Sheet",
     "SheetType",
     "Tile",
-    "Tileset",
     "TileRef",
+    "Tileset",
 ]

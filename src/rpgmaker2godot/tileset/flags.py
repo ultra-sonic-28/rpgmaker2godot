@@ -1,7 +1,4 @@
-from dataclasses import dataclass
-
-from ..model import Tile
-from .model import TileProperties, TilesetFlags
+from .model import TileProperties
 
 _PASS_DOWN = 0x0001
 _PASS_LEFT = 0x0002

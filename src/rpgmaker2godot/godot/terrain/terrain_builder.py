@@ -22,8 +22,8 @@ from rpgmaker2godot.godot.model import (
     GodotTerrain,
     GodotTerrainPlan,
     GodotTerrainSet,
-    GodotTileTerrain,
     GodotTileSet,
+    GodotTileTerrain,
 )
 from rpgmaker2godot.model import SheetType
 from rpgmaker2godot.model.tileset import Tileset

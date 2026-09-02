@@ -171,33 +171,31 @@ def test_non_directional_properties_do_not_affect_collision(
     properties = make_properties()
 
     properties = TileProperties(
-        **{
-            "can_pass_down": properties.can_pass_down,
-            "can_pass_left": properties.can_pass_left,
-            "can_pass_right": properties.can_pass_right,
-            "can_pass_up": properties.can_pass_up,
-            "is_star": (
-                True if property_name == "is_star"
-                else properties.is_star
-            ),
-            "is_ladder": (
-                True if property_name == "is_ladder"
-                else properties.is_ladder
-            ),
-            "is_bush": (
-                True if property_name == "is_bush"
-                else properties.is_bush
-            ),
-            "is_counter": (
-                True if property_name == "is_counter"
-                else properties.is_counter
-            ),
-            "is_damage_floor": (
-                True if property_name == "is_damage_floor"
-                else properties.is_damage_floor
-            ),
-            "terrain_tag": 7,
-        }
+        can_pass_down=properties.can_pass_down,
+        can_pass_left=properties.can_pass_left,
+        can_pass_right=properties.can_pass_right,
+        can_pass_up=properties.can_pass_up,
+        is_star=(
+            True if property_name == "is_star"
+            else properties.is_star
+        ),
+        is_ladder=(
+            True if property_name == "is_ladder"
+            else properties.is_ladder
+        ),
+        is_bush=(
+            True if property_name == "is_bush"
+            else properties.is_bush
+        ),
+        is_counter=(
+            True if property_name == "is_counter"
+            else properties.is_counter
+        ),
+        is_damage_floor=(
+            True if property_name == "is_damage_floor"
+            else properties.is_damage_floor
+        ),
+        terrain_tag=7,
     )
 
     result = tile_properties_to_collision(properties)

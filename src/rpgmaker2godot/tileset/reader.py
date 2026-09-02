@@ -48,7 +48,7 @@ class TilesetsJsonReader:
             ) from exc
 
         if not isinstance(data, list):
-            raise ValueError(
+            raise TypeError(
                 "Tilesets.json root must be a JSON array."
             )
 
@@ -69,7 +69,7 @@ class TilesetsJsonReader:
                 continue
 
             if not isinstance(tileset, dict):
-                raise ValueError(
+                raise TypeError(
                     f"Tileset at index {index} must be an object."
                 )
 
@@ -82,7 +82,7 @@ class TilesetsJsonReader:
                 tileset_id = index
 
             if not isinstance(tileset_id, int):
-                raise ValueError(
+                raise TypeError(
                     f"Invalid tileset id at index {index}: "
                     f"{tileset_id!r}"
                 )
@@ -96,7 +96,7 @@ class TilesetsJsonReader:
             name = tileset.get("name", "")
 
             if not isinstance(name, str):
-                raise ValueError(
+                raise TypeError(
                     f"Invalid tileset name at index {index}: "
                     f"{name!r}"
                 )
@@ -109,7 +109,7 @@ class TilesetsJsonReader:
                 )
 
             if not isinstance(flags, list):
-                raise ValueError(
+                raise TypeError(
                     f"Tileset at index {index} has invalid "
                     "'flags' field."
                 )
@@ -118,7 +118,7 @@ class TilesetsJsonReader:
 
             for flag_index, value in enumerate(flags):
                 if not isinstance(value, int):
-                    raise ValueError(
+                    raise TypeError(
                         f"Invalid flag at tileset {index}, "
                         f"index {flag_index}: {value!r}"
                     )

@@ -6,9 +6,6 @@ from rpgmaker2godot.godot.resource.resource import (
     GodotExtResource,
     GodotTileSetResource,
 )
-from rpgmaker2godot.godot.resource.resource_serializer import (
-    GodotResourceSerializer,
-)
 
 
 def make_resource() -> GodotTileSetResource:

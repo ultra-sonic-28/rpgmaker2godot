@@ -55,9 +55,8 @@ class TilesetDetector:
             try:
                 prefix = match.group("prefix") or ""
 
-                if prefix.endswith("_"):
-                    prefix = prefix[:-1]
-                    
+                prefix = prefix.removesuffix("_")
+
                 sheet = self._analyze_sheet(
                     path,
                     sheet_type,

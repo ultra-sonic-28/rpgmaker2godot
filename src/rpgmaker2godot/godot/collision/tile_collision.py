@@ -1,7 +1,9 @@
+from typing import TypeGuard
+
 from rpgmaker2godot.model.tile_collision import TileCollision
 
 
-def has_collision(collision: TileCollision | None) -> bool:
+def has_collision(collision: TileCollision | None) -> TypeGuard[TileCollision]:
     """Return whether a tile actually blocks movement.
 
     A tile without collision information — or whose directional flags

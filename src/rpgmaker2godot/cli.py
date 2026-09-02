@@ -4,7 +4,7 @@ import sys
 from collections import defaultdict
 from dataclasses import replace
 from pathlib import Path
-from typing import TextIO
+from typing import NoReturn, TextIO
 
 from PIL import Image
 
@@ -62,7 +62,7 @@ class _Parser(argparse.ArgumentParser):
     def error(
         self,
         message: str,
-    ) -> None:
+    ) -> NoReturn:
         raise _UsageError(self.format_usage(), message)
 
 

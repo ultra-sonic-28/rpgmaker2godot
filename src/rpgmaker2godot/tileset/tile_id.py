@@ -56,13 +56,14 @@ def tile_ref_to_tile_id(tile: TileRef) -> int:
     the global Tile ID.
 
     This function bridges our internal representation (`TileRef`)
-    and RPG Maker's representation.
-    """
+    and RPG Maker's representation. ``TileRef.index`` is the flat
+    position inside its sheet, so the global Tile ID is simply
+    ``base + index``:
 
-    if tile.sheet_type == SheetType.A4:
-        # A4 is unfolded per autotile: index = local_kind * 48 + shape,
-        # ID = base + index (base = TILE_ID_A4 = 5888).
-        return SHEET_TILE_ID_BASE[SheetType.A4] + tile.index
+    * B-E sheets store ``index = row * 16 + column``;
+    * A5 stores ``index = row * 8 + column``;
+    * the unfolded A4 stores ``index = local_kind * 48 + shape``.
+    """
 
     try:
         base = SHEET_TILE_ID_BASE[tile.sheet_type]
@@ -71,30 +72,12 @@ def tile_ref_to_tile_id(tile: TileRef) -> int:
             f"Unsupported sheet type: {tile.sheet_type!r}"
         ) from exc
 
-    try:
-        columns = SHEET_COLUMNS[tile.sheet_type]
-    except KeyError as exc:
+    if tile.index < 0:
         raise ValueError(
-            f"Unsupported sheet type: {tile.sheet_type!r}"
-        ) from exc
-
-    if tile.column < 0:
-        raise ValueError(
-            f"Tile column must be >= 0, got {tile.column}."
+            f"Tile index must be >= 0, got {tile.index}."
         )
 
-    if tile.row < 0:
-        raise ValueError(
-            f"Tile row must be >= 0, got {tile.row}."
-        )
-
-    if tile.column >= columns:
-        raise ValueError(
-            f"Tile column {tile.column} is outside "
-            f"{tile.sheet_type.name} ({columns} columns)."
-        )
-
-    return base + tile.row * columns + tile.column
+    return base + tile.index
 
 
 def tile_to_tile_id(tile: Tile) -> int:

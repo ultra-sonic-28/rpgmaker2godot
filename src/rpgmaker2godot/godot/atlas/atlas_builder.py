@@ -17,34 +17,41 @@ class GodotAtlasSourceBuilder:
         texture_resource_id: str,
         terrain_plan: GodotTerrainPlan | None = None,
     ) -> GodotAtlasSourceResource:
-        tiles = tuple(
-            GodotAtlasTileResource(
-                column=tile.cell.column,
-                row=tile.cell.row,
-                width=self._to_cell_dimension(
-                    tile.width,
-                    source.tile_width,
-                ),
-                height=self._to_cell_dimension(
-                    tile.height,
-                    source.tile_height,
-                ),
-                collision=tile.collision,
-                terrain=(
-                    terrain_plan.tile_terrains.get(tile.ref)
-                    if terrain_plan is not None
-                    else None
-                ),
+        tiles: list[GodotAtlasTileResource] = []
+
+        for tile in source.tiles:
+            if tile.cell is None:
+                raise ValueError(
+                    f"Tile {tile.ref} has no Godot atlas cell assigned."
+                )
+
+            tiles.append(
+                GodotAtlasTileResource(
+                    column=tile.cell.column,
+                    row=tile.cell.row,
+                    width=self._to_cell_dimension(
+                        tile.width,
+                        source.tile_width,
+                    ),
+                    height=self._to_cell_dimension(
+                        tile.height,
+                        source.tile_height,
+                    ),
+                    collision=tile.collision,
+                    terrain=(
+                        terrain_plan.tile_terrains.get(tile.ref)
+                        if terrain_plan is not None
+                        else None
+                    ),
+                )
             )
-            for tile in source.tiles
-        )
 
         return GodotAtlasSourceResource(
             resource_id=resource_id,
             texture_resource_id=texture_resource_id,
             tile_width=source.tile_width,
             tile_height=source.tile_height,
-            tiles=tiles,
+            tiles=tuple(tiles),
         )
 
 

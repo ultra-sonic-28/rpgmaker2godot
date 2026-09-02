@@ -22,7 +22,9 @@ class GodotAtlasTile:
     atlas_x: int
     atlas_y: int
 
-    cell: GodotAtlasCell
+    # Assigned later by GodotTileSetBuilder; None until then (the
+    # mapper only knows atlas pixel coordinates, not grid cells).
+    cell: GodotAtlasCell | None
 
     width: int
     height: int

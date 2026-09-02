@@ -116,6 +116,74 @@ def test_simple_cli_exports_tileset(
     assert "Inside.tres  2x6 tiles" in captured.out
 
 
+def test_simple_cli_exports_tileset_no_terrains(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    create_sheet(
+        input_directory,
+        "Inside_A5.png",
+        color=(255, 0, 0, 255),
+    )
+
+    create_sheet(
+        input_directory,
+        "Inside_B.png",
+        color=(0, 255, 0, 255),
+    )
+
+    create_sheet(
+        input_directory,
+        "Inside_C.png",
+        color=(0, 0, 255, 255),
+    )
+
+    exit_code = main(
+        [
+            "--simple",
+            "--no-terrains",
+            str(input_directory),
+            str(output_directory),
+        ]
+    )
+
+    assert exit_code == 0
+
+    output_path = output_directory / "Inside.png"
+
+    assert output_path.exists()
+
+    with Image.open(output_path) as image:
+        assert image.size == (96, 288)
+
+    captured = capsys.readouterr()
+
+    assert "Inside.png" in captured.out
+
+    # The program banner is displayed on startup.
+    assert re.search(PROGRAM_BANNER_VERSION, captured.out)
+
+    # Pipeline steps are reported in order.
+    assert "Analyzing input directory" in captured.out
+    assert "Resolving collision flags" in captured.out
+    assert "Converting tiles" in captured.out
+    assert "Resolving terrain definitions" in captured.out
+    assert "Exporting Godot resources" in captured.out
+
+    # No terrains definitions are generated, so the "Resolving terrain definitions" step is skipped.
+    assert "Skipped (--no-terrains)" in captured.out
+
+    # The conversion step reports tiles per tileset.
+    assert "Inside: 12 tiles from 3 sheets" in captured.out
+
+    # The export step reports the resulting tile grid.
+    assert "(2x6 tiles)" in captured.out
+    assert "Inside.tres  2x6 tiles" in captured.out
+
+
 def test_simple_cli_no_merge_exports_one_file_per_sheet(
     tmp_path: Path,
 ) -> None:

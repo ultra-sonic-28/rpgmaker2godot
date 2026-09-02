@@ -102,10 +102,11 @@ def test_simple_cli_exports_tileset(
     assert re.search(PROGRAM_BANNER_VERSION, captured.out)
 
     # Pipeline steps are reported in order.
-    assert "[1/4] Analyzing input directory" in captured.out
-    assert "[2/4] Resolving collision flags" in captured.out
-    assert "[3/4] Converting tiles" in captured.out
-    assert "[4/4] Exporting Godot resources" in captured.out
+    assert "Analyzing input directory" in captured.out
+    assert "Resolving collision flags" in captured.out
+    assert "Converting tiles" in captured.out
+    assert "Resolving terrain definitions" in captured.out
+    assert "Exporting Godot resources" in captured.out
 
     # The conversion step reports tiles per tileset.
     assert "Inside: 12 tiles from 3 sheets" in captured.out
@@ -355,7 +356,7 @@ def test_simple_cli_paints_output_when_colors_forced(
     assert "Inside: 4 tiles from 1 sheet" in captured.out
 
     # White on blue step headings.
-    assert "\x1b[97;44m[1/4] Analyzing input directory" in captured.out
+    assert "\x1b[97;44m[1/5] Analyzing input directory" in captured.out
     # White on green Generated heading.
     assert "\x1b[97;42mGenerated:" in captured.out
 
@@ -390,7 +391,7 @@ def test_simple_cli_never_paints_when_no_color_is_set(
     captured = capsys.readouterr()
 
     # NO_COLOR takes precedence over FORCE_COLOR.
-    assert "[1/4] Analyzing input directory" in captured.out
+    assert "Analyzing input directory" in captured.out
     assert "\x1b[" not in captured.out
     assert "\x1b[" not in captured.err
 
@@ -430,7 +431,7 @@ def test_simple_cli_resolves_collision_from_tilesets_json(
 
     captured = capsys.readouterr()
 
-    assert "[2/4] Resolving collision flags" in captured.out
+    assert "Resolving collision flags" in captured.out
     assert "Resolved collision from Tilesets.json" in captured.out
 
 

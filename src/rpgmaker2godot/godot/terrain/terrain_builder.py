@@ -14,6 +14,7 @@ slots whose source region is not fully transparent.
 """
 
 import colorsys
+from dataclasses import dataclass
 
 from PIL import Image
 
@@ -46,15 +47,34 @@ WALL_TOP_REGION_HEIGHT = 144
 WALL_SIDE_REGION_HEIGHT = 96
 
 
+@dataclass(frozen=True)
+class TerrainResolution:
+    """Result of the terrain *resolution* phase.
+
+    The A4 source image has been scanned for drawn autotiles and the
+    matching terrain sets (their modes, names and material colours) are
+    known. Attaching the terrains to the individual Godot atlas tiles is
+    not part of this result: it only needs the Godot tileset and is
+    deferred to the *assignment* phase, performed during export.
+    """
+
+    terrain_sets: tuple[GodotTerrainSet, ...]
+    kind_assignment: dict[int, tuple[int, bool]]
+
+
 class GodotTerrainBuilder:
     """Derive the Godot terrain plan from a converted tileset."""
 
-    def build(
+    def resolve(
         self,
         tileset: Tileset,
-        godot_tileset: GodotTileSet,
-    ) -> GodotTerrainPlan:
-        """Return the terrain plan for one converted RPG Maker tileset."""
+    ) -> TerrainResolution:
+        """Detect the drawn A4 autotiles and define their terrain sets.
+
+        This is the resolution/definition phase: it only reads the A4
+        source image, so it can run before the Godot tileset is built and
+        be reported as its own CLI step.
+        """
 
         a4_sheets = [
             sheet
@@ -63,7 +83,7 @@ class GodotTerrainBuilder:
         ]
 
         if not a4_sheets:
-            return GodotTerrainPlan((), {})
+            return TerrainResolution((), {})
 
         if len(a4_sheets) > 1:
             raise ValueError(
@@ -79,14 +99,42 @@ class GodotTerrainBuilder:
             used_kinds,
         )
 
+        return TerrainResolution(
+            terrain_sets=tuple(terrain_sets),
+            kind_assignment=kind_assignment,
+        )
+
+    def assign(
+        self,
+        godot_tileset: GodotTileSet,
+        resolution: TerrainResolution,
+    ) -> GodotTerrainPlan:
+        """Attach the resolved terrains to the Godot tileset's A4 cells."""
+
         tile_terrains = self._assign_tiles(
             godot_tileset,
-            kind_assignment,
+            resolution.kind_assignment,
         )
 
         return GodotTerrainPlan(
-            terrain_sets=tuple(terrain_sets),
+            terrain_sets=resolution.terrain_sets,
             tile_terrains=tile_terrains,
+        )
+
+    def build(
+        self,
+        tileset: Tileset,
+        godot_tileset: GodotTileSet,
+    ) -> GodotTerrainPlan:
+        """Resolve then assign terrains for one converted tileset.
+
+        Convenience wrapper kept for callers that want a single call
+        returning the fully-built plan.
+        """
+
+        return self.assign(
+            godot_tileset,
+            self.resolve(tileset),
         )
 
     def _detect_used_kinds(self, source_path) -> set[int]:

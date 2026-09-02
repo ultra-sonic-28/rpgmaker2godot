@@ -16,13 +16,17 @@ from .character.spritesheet_builder import CharacterSpriteSheetBuilder
 from .conversion.converter import SimpleConverter
 from .godot.export.characters import CharacterExporter
 from .godot.export.simple import SimpleExporter
+from .godot.terrain.terrain_builder import (
+    GodotTerrainBuilder,
+    TerrainResolution,
+)
 from .tileset.reader import TilesetsJsonReader
 from .tileset.resolver import TilePropertiesResolver
 from .utils.config import AppConfig, load_app_config
 from .utils.log import configure_logging
 from .utils.messages import display_program_banner, display_warning
 
-TILESET_TOTAL_STEPS = 4
+TILESET_TOTAL_STEPS = 5
 CHARACTER_TOTAL_STEPS = 3
 
 _RESET = "\x1b[0m"
@@ -112,6 +116,47 @@ def _print_step(
             sys.stdout,
         )
     )
+
+
+# Maximum number of terrain-set names kept on the "[4/5] Resolving terrain
+# definitions" detail line; the remainder is summarized so a fully-drawn
+# A4 sheet never produces a single, unboundedly long line.
+_MAX_TERRAIN_NAMES = 6
+
+
+def _join_terrain_names(names: list[str]) -> str:
+    """Render a bounded, human-readable list of terrain-set names."""
+
+    if len(names) <= _MAX_TERRAIN_NAMES:
+        return ", ".join(names)
+
+    shown = names[:_MAX_TERRAIN_NAMES]
+    remaining = len(names) - _MAX_TERRAIN_NAMES
+
+    return ", ".join(shown) + f", … (+{remaining})"
+
+
+def _print_terrain_resolution(
+    tileset_name: str,
+    resolution: TerrainResolution,
+) -> None:
+    """Print one indented detail line for a resolved tileset."""
+
+    set_count = len(resolution.terrain_sets)
+
+    if set_count == 0:
+        print(f"  {tileset_name}: no terrain sets (no A4 autotiles)")
+        return
+
+    names = _join_terrain_names(
+        [
+            terrain_set.terrains[0].name
+            for terrain_set in resolution.terrain_sets
+        ]
+    )
+
+    set_word = "terrain set" if set_count == 1 else "terrain sets"
+    print(f"  {tileset_name}: {set_count} {set_word} ({names})")
 
 
 def _format_usage_error(
@@ -429,15 +474,32 @@ def _run_tileset_mode(
             f"{sheet_count} {sheet_word}"
         )
 
-    _print_step(4, "Exporting Godot resources", TILESET_TOTAL_STEPS)
+    _print_step(4, "Resolving terrain definitions", TILESET_TOTAL_STEPS)
+
+    terrain_plans: dict[str, TerrainResolution] = {}
+
+    if args.no_terrains:
+        print("  Skipped (--no-terrains)")
+    else:
+        terrain_builder = GodotTerrainBuilder()
+
+        for tileset in conversion.tilesets:
+            resolution = terrain_builder.resolve(tileset)
+            terrain_plans[tileset.name] = resolution
+
+            _print_terrain_resolution(tileset.name, resolution)
+
+    _print_step(5, "Exporting Godot resources", TILESET_TOTAL_STEPS)
 
     exporter = SimpleExporter(
         godot_output_path=(config.tileset.path or None),
         terrains=not args.no_terrains,
     )
+
     generated = exporter.export(
         conversion,
         args.output,
+        terrain_resolutions=terrain_plans or None,
     )
 
     for tileset in conversion.tilesets:

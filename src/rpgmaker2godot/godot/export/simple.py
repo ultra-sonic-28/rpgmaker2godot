@@ -1,10 +1,14 @@
+from collections.abc import Mapping
 from pathlib import Path
 
 from rpgmaker2godot.atlas.builder import AtlasBuilder
 from rpgmaker2godot.atlas.writer import AtlasWriter
 from rpgmaker2godot.godot.atlas.atlas_mapper import GodotAtlasMapper
 from rpgmaker2godot.godot.resource.resource_writer import GodotResourceWriter
-from rpgmaker2godot.godot.terrain.terrain_builder import GodotTerrainBuilder
+from rpgmaker2godot.godot.terrain.terrain_builder import (
+    GodotTerrainBuilder,
+    TerrainResolution,
+)
 from rpgmaker2godot.godot.tileset.tileset_builder import GodotTileSetBuilder
 from rpgmaker2godot.model.tileset import ConversionResult
 
@@ -74,6 +78,7 @@ class SimpleExporter:
         self,
         conversion: ConversionResult,
         output_directory: Path,
+        terrain_resolutions: Mapping[str, TerrainResolution] | None = None,
     ) -> tuple[Path, ...]:
         output_directory.mkdir(
             parents=True,
@@ -101,14 +106,23 @@ class SimpleExporter:
                 atlas_path,
             )
 
-            terrain_plan = (
-                self._godot_terrain_builder.build(
-                    tileset,
-                    godot_tileset,
+            terrain_plan = None
+
+            if self._terrains:
+                # Reuse a plan resolved earlier by the CLI when available
+                # (the "Resolving terrain definitions" phase) so the A4
+                # source image is scanned only once; otherwise resolve it
+                # on the fly, preserving the standalone behaviour.
+                resolution = (
+                    terrain_resolutions[tileset.name]
+                    if terrain_resolutions is not None
+                    else self._godot_terrain_builder.resolve(tileset)
                 )
-                if self._terrains
-                else None
-            )
+
+                terrain_plan = self._godot_terrain_builder.assign(
+                    godot_tileset,
+                    resolution,
+                )
 
             resource_path = (
                 output_directory / f"{tileset.name}.tres"

@@ -1,10 +1,12 @@
 import json
+import re
 from pathlib import Path
 
 import yaml
 from PIL import Image
 
 from rpgmaker2godot.cli import main
+from tests.helpers import PROGRAM_BANNER_VERSION
 
 
 def create_sheet(
@@ -97,7 +99,7 @@ def test_simple_cli_exports_tileset(
     assert "Inside.png" in captured.out
 
     # The program banner is displayed on startup.
-    assert "rpgmaker2godot v0.1.0" in captured.out
+    assert re.search(PROGRAM_BANNER_VERSION, captured.out)
 
     # Pipeline steps are reported in order.
     assert "[1/4] Analyzing input directory" in captured.out
@@ -480,7 +482,7 @@ def test_missing_arguments_show_banner_then_usage_panel(
     assert exit_code == 2
 
     # The startup banner is displayed first, like any regular run.
-    assert "rpgmaker2godot v0.1.0" in output
+    assert re.search(PROGRAM_BANNER_VERSION, output)
     assert (
         "Convert RPG Maker MV/MZ tilesets to Godot resources."
         in output

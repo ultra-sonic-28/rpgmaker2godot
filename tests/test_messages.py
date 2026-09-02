@@ -1,10 +1,11 @@
-import pytest
+import re
 
 from rpgmaker2godot.utils.messages import (
     display_program_banner,
     display_title,
     display_warning,
 )
+from tests.helpers import PROGRAM_BANNER_VERSION
 
 
 def test_display_title_renders_message_inside_a_panel(
@@ -28,7 +29,7 @@ def test_display_program_banner_shows_name_version_and_summary(
 
     captured = capsys.readouterr()
 
-    assert "rpgmaker2godot v0.1.0" in captured.out
+    assert re.search(PROGRAM_BANNER_VERSION, captured.out)
     assert (
         "Convert RPG Maker MV/MZ tilesets to Godot resources."
         in captured.out
@@ -47,7 +48,7 @@ def test_banner_hides_build_number_when_absent(
 
     captured = capsys.readouterr()
 
-    assert "rpgmaker2godot v0.1.0" in captured.out
+    assert re.search(PROGRAM_BANNER_VERSION, captured.out)
     assert "build" not in captured.out
 
 
@@ -63,7 +64,7 @@ def test_banner_appends_build_number_after_version(
 
     captured = capsys.readouterr()
 
-    assert "rpgmaker2godot v0.1.0 build 35" in captured.out
+    assert re.search(PROGRAM_BANNER_VERSION + r" build 35", captured.out)
 
 
 def test_display_warning_renders_message_inside_a_panel(

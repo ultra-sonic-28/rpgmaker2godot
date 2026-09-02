@@ -1,9 +1,11 @@
+import re
 from pathlib import Path
 
 import yaml
 from PIL import Image
 
 from rpgmaker2godot.cli import main
+from tests.helpers import PROGRAM_BANNER_VERSION
 
 
 def create_character_sheet(
@@ -49,7 +51,7 @@ def test_character_mode_exports_spriteframes(
     assert exit_code == 0
 
     # The program banner is displayed on startup.
-    assert "rpgmaker2godot v0.1.0" in captured.out
+    assert re.search(PROGRAM_BANNER_VERSION, captured.out)
 
     for name in ("player-1", "player-2"):
         assert (output_directory / f"{name}.png").exists()

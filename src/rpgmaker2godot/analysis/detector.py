@@ -12,7 +12,7 @@ from .models import (
 )
 
 SHEET_PATTERN = re.compile(
-    r"^(?P<prefix>.*_)?(?P<sheet>A4|A5|B|C|D|E)\.png$",
+    r"^(?P<prefix>.*_)?(?P<sheet>A3|A4|A5|B|C|D|E)\.png$",
     re.IGNORECASE,
 )
 
@@ -71,8 +71,8 @@ class TilesetDetector:
         if not found_sheets:
             raise ValueError(
                 "No supported RPG Maker MV/MZ sheets found "
-                "(expected files ending with "
-                "A4.png, A5.png, B.png, C.png, D.png or E.png)."
+                "(expected files ending with A3.png, A4.png, A5.png, "
+                "B.png, C.png, D.png or E.png)."
             )
 
         return AnalysisResult(

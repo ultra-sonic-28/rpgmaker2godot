@@ -13,9 +13,11 @@ SHEET_TILE_ID_BASE: dict[SheetType, int] = {
 
     # The A-series autotile regions follow rmmz_core.js:
     #   A1 = 2048, A2 = 2816, A3 = 4352, A4 = 5888, MAX = 8192.
-    # A4 contains 48 autotiles x 48 shapes = 2304 Tile IDs. Our
-    # converter stores ``index = local_kind * 48 + shape`` on the TileRef
-    # so the Tile ID is simply ``base + index``.
+    # A3 contains 32 autotiles x 48 shapes = 1536 Tile IDs and A4
+    # contains 48 autotiles x 48 shapes = 2304 Tile IDs. Our converter
+    # stores ``index = local_kind * 48 + shape`` on the TileRef so the
+    # Tile ID is simply ``base + index``.
+    SheetType.A3: 4352,
     SheetType.A4: 5888,
 }
 
@@ -27,13 +29,15 @@ SHEET_COLUMNS: dict[SheetType, int] = {
     SheetType.D: 16,
     SheetType.E: 16,
 
-    # A5 is 8 columns wide; the 16-column entry below is A4 only.
+    # A5 is 8 columns wide; the 16-column entries below are A3/A4
+    # only.
     SheetType.A5: 8,
 
-    # A4 reads as a flat 16-column grid in the fallback pipeline path
-    # (its native layout covers the two side-by-side wall autotiles).
-    # The true autotile interpretation is handled by the autotile
-    # expander.
+    # A3/A4 read as a flat 16-column grid in the fallback pipeline
+    # path (their native layout covers the two side-by-side wall
+    # autotiles). The true autotile interpretation is handled by the
+    # autotile expander.
+    SheetType.A3: 16,
     SheetType.A4: 16,
 }
 
@@ -44,6 +48,7 @@ SHEET_ROWS: dict[SheetType, int] = {
     SheetType.D: 16,
     SheetType.E: 16,
     SheetType.A5: 16,
+    SheetType.A3: 8,
     SheetType.A4: 15,
 }
 
@@ -62,7 +67,7 @@ def tile_ref_to_tile_id(tile: TileRef) -> int:
 
     * B-E sheets store ``index = row * 16 + column``;
     * A5 stores ``index = row * 8 + column``;
-    * the unfolded A4 stores ``index = local_kind * 48 + shape``.
+    * the unfolded A3/A4 store ``index = local_kind * 48 + shape``.
     """
 
     try:
@@ -100,10 +105,11 @@ def tile_to_tile_id(tile: Tile) -> int:
 
     sheet_type = tile.ref.sheet_type
 
-    if sheet_type == SheetType.A4:
-        # A4 is unfolded per autotile: index = local_kind * 48 + shape,
-        # ID = base + index (base = TILE_ID_A4 = 5888).
-        return SHEET_TILE_ID_BASE[SheetType.A4] + tile.ref.index
+    if sheet_type in (SheetType.A3, SheetType.A4):
+        # A3/A4 are unfolded per autotile: index = local_kind * 48 +
+        # shape, ID = base + index (base = TILE_ID_A3 = 4352 /
+        # TILE_ID_A4 = 5888).
+        return SHEET_TILE_ID_BASE[sheet_type] + tile.ref.index
 
     try:
         base = SHEET_TILE_ID_BASE[sheet_type]

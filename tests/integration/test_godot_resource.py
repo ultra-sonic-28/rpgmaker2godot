@@ -643,6 +643,131 @@ def test_generated_a4_tileset_loads_in_godot(
 
 
 @pytest.mark.integration
+def test_generated_a3_tileset_loads_in_godot(
+    tmp_path: Path,
+) -> None:
+    """The unfolded A3 tileset loads and exposes its unique tiles in Godot.
+
+    A single ``*_A3.png`` (768x384) sheet holds 32 autotiles unfolded
+    into 1536 raw shape variants; the duplicated Wall shapes are
+    dropped, leaving 512 unique tiles of 48x48. They are packed 16 per
+    row, giving an atlas of 768x1536 (32 rows). The generated ``.tres``
+    must load in Godot with every one of those cells present.
+    """
+
+    godot = find_godot()
+
+    if godot is None:
+        pytest.skip(
+            "Godot executable not available. "
+            "Set the GODOT environment variable."
+        )
+
+    input_directory = tmp_path / "tilesets"
+    project_directory = tmp_path / "godot"
+    generated_directory = project_directory / "generated"
+
+    generated_directory.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    # Distinct 24x24 quarters: the pixel-level deduplication keeps all
+    # 512 unfolded tiles, whose full atlas must load in Godot.
+    input_directory.mkdir(parents=True, exist_ok=True)
+
+    a3_path = input_directory / "Inside_A3.png"
+
+    a3_sheet = Image.new("RGBA", (768, 384))
+
+    for y in range(0, 384, 24):
+        for x in range(0, 768, 24):
+            qx, qy = x // 24, y // 24
+
+            a3_sheet.paste(
+                (
+                    (qx * 37) % 256,
+                    (qy * 61) % 256,
+                    (qx + qy * 3) % 256,
+                    255,
+                ),
+                (x, y, x + 24, y + 24),
+            )
+
+    a3_sheet.save(a3_path)
+    a3_sheet.close()
+
+    analysis = TilesetDetector().analyze(
+        input_directory,
+    )
+
+    conversion = SimpleConverter().convert(
+        analysis,
+    )
+
+    SimpleExporter(
+        godot_project_root=project_directory,
+    ).export(
+        conversion,
+        generated_directory,
+    )
+
+    write_project(project_directory)
+
+    # The A3 sheet alone forms the <prefix>_Autotile merged output.
+    generated_png = generated_directory / "Inside_Autotile.png"
+    assert generated_png.exists()
+    assert generated_png.stat().st_size > 0
+
+    generated_tres = generated_directory / "Inside_Autotile.tres"
+    assert generated_tres.exists()
+    assert generated_tres.stat().st_size > 0
+
+    script_path = write_validation_script(
+        project_directory,
+        resource_path="res://generated/Inside_Autotile.tres",
+        expected_atlas_size=(768, 1536),
+        expected_columns=16,
+        expected_rows=32,
+        validate_all_cells=True,
+    )
+
+    subprocess.run(
+        [
+            godot,
+            "--headless",
+            "--path",
+            str(project_directory),
+            "--editor",
+            "--quit",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    result = subprocess.run(
+        [
+            godot,
+            "--headless",
+            "--path",
+            str(project_directory),
+            "--script",
+            str(script_path.name),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, (
+        "Godot failed to load the generated A3 TileSet.\n\n"
+        f"STDOUT:\n{result.stdout}\n\n"
+        f"STDERR:\n{result.stderr}"
+    )
+
+
+@pytest.mark.integration
 def test_generated_a4_tileset_terrains_load_in_godot(
     tmp_path: Path,
 ) -> None:

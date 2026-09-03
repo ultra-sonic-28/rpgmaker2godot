@@ -121,3 +121,117 @@ def test_leaves_unused_material_tiles_without_terrain(tmp_path) -> None:
     unused = tile_by_kind_shape(godot_tileset, 1, 0)
 
     assert unused.ref not in plan.tile_terrains
+
+
+def write_single_material_a3_sheet(path: Path) -> None:
+    """A3 sheet with one opaque building material (column 0, band 0).
+
+    Kind 0 (roof row) and kind 8 (wall row) are drawn with distinct
+    quarter colours; every other source region stays transparent.
+    """
+
+    sheet = Image.new("RGBA", (768, 384), (0, 0, 0, 0))
+
+    for y in range(0, 96, 24):
+        for x in range(0, 96, 24):
+            qx, qy = x // 24, y // 24
+
+            sheet.paste(
+                ((qx * 37) % 256, (qy * 61) % 256, 30, 255),
+                (x, y, x + 24, y + 24),
+            )
+
+    for y in range(96, 192, 24):
+        for x in range(0, 96, 24):
+            qx, qy = x // 24, (y - 96) // 24
+
+            sheet.paste(
+                ((qx * 37) % 256, (qy * 61) % 256, 90, 255),
+                (x, y, x + 24, y + 24),
+            )
+
+    sheet.save(path)
+    sheet.close()
+
+
+def build_a3_pipeline(tmp_path: Path):
+    """Run detection → conversion → atlas → Godot tileset for A3."""
+
+    source = tmp_path / "Inside_A3.png"
+
+    write_single_material_a3_sheet(source)
+
+    analysis = TilesetDetector().analyze(tmp_path)
+    conversion = SimpleConverter().convert(analysis)
+
+    atlas = AtlasBuilder().build(conversion.tilesets[0])
+    mapping = GodotAtlasMapper().map(atlas)
+    godot_tileset = GodotTileSetBuilder().build(mapping, source)
+
+    return conversion.tilesets[0], godot_tileset
+
+
+def test_a3_builds_one_terrain_set_per_material_part(tmp_path) -> None:
+    tileset, godot_tileset = build_a3_pipeline(tmp_path)
+
+    plan = GodotTerrainBuilder().build(tileset, godot_tileset)
+
+    assert len(plan.terrain_sets) == 2
+
+    roof_set, wall_set = plan.terrain_sets
+
+    # Every A3 row composes from the wall table: side matching only.
+    assert roof_set.mode == 2  # MATCH_SIDES
+    assert wall_set.mode == 2  # MATCH_SIDES
+
+    assert roof_set.terrains[0].name == "Roof 1"
+    assert wall_set.terrains[0].name == "Wall 1"
+
+    # Both parts of one material share its color.
+    assert roof_set.terrains[0].color == wall_set.terrains[0].color
+
+
+def test_a3_assigns_side_only_peering_bits(tmp_path) -> None:
+    tileset, godot_tileset = build_a3_pipeline(tmp_path)
+
+    plan = GodotTerrainBuilder().build(tileset, godot_tileset)
+
+    roof = tile_by_kind_shape(godot_tileset, 0, 0)
+
+    terrain = plan.tile_terrains[roof.ref]
+
+    assert terrain.set_index == 0
+    assert terrain.terrain_index == 0
+
+    # Fully surrounded wall-table shape: every side connects, no
+    # corner bit (sides-only matching).
+    bit_names = {name for name, _ in terrain.peering_bits}
+
+    assert bit_names == {
+        "top_side",
+        "right_side",
+        "bottom_side",
+        "left_side",
+    }
+
+    wall_variant = tile_by_kind_shape(godot_tileset, 8, 1)
+
+    wall_terrain = plan.tile_terrains[wall_variant.ref]
+
+    assert wall_terrain.set_index == 1
+
+    # Wall shape 1: left border — no left bit, three side bits.
+    wall_bit_names = {name for name, _ in wall_terrain.peering_bits}
+
+    assert wall_bit_names == {"top_side", "right_side", "bottom_side"}
+
+
+def test_a3_leaves_unused_material_tiles_without_terrain(tmp_path) -> None:
+    tileset, godot_tileset = build_a3_pipeline(tmp_path)
+
+    plan = GodotTerrainBuilder().build(tileset, godot_tileset)
+
+    # Kind 1's region is transparent: its tile has no terrain.
+    unused = tile_by_kind_shape(godot_tileset, 1, 0)
+
+    assert unused.ref not in plan.tile_terrains

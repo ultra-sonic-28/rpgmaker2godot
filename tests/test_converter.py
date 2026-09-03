@@ -97,6 +97,50 @@ def write_a4_sheet(
     image.close()
 
 
+def write_a3_sheet(
+    path: Path,
+    *,
+    uniform_band: tuple[int, int] | None = None,
+) -> None:
+    """Write a canonical 768x384 A3 sheet with injective quarters.
+
+    Every 24x24 quarter receives a colour derived from its (qx, qy)
+    position; the mapping is injective over the whole sheet, so no two
+    compositions can render identically and the pixel-level
+    deduplication behaves exactly like the composition-level one
+    (512 tiles). ``uniform_band`` optionally paints the pixel rows
+    ``[start, end)`` with one flat colour: every autotile whose source
+    lies inside that band then composes identical tiles, which the
+    converter must merge.
+    """
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    image = Image.new("RGBA", (768, 384))
+
+    for y in range(0, 384, 24):
+        for x in range(0, 768, 24):
+            qx, qy = x // 24, y // 24
+
+            if (
+                uniform_band is not None
+                and uniform_band[0] <= y < uniform_band[1]
+            ):
+                color = (200, 200, 200, 255)
+            else:
+                color = (
+                    (qx * 37) % 256,
+                    (qy * 61) % 256,
+                    (qx + qy * 3) % 256,
+                    255,
+                )
+
+            image.paste(color, (x, y, x + 24, y + 24))
+
+    image.save(path)
+    image.close()
+
+
 def test_converts_single_sheet() -> None:
     analysis = make_analysis(
         make_sheet(
@@ -457,7 +501,7 @@ def test_a4_pixel_tolerance_merges_noisy_tiles(tmp_path: Path) -> None:
     assert [tile.ref.index for tile in exact_sheet.tiles] == [0, 47]
 
     tolerant_sheet = (
-        SimpleConverter(a4_pixel_tolerance=1)
+        SimpleConverter(autotile_pixel_tolerance=1)
         .convert(analysis)
         .tilesets[0]
         .sheets[0]
@@ -507,7 +551,7 @@ def test_a4_pixel_tolerance_respects_collision(tmp_path: Path) -> None:
     tolerant_sheet = (
         SimpleConverter(
             tile_properties_resolver=StubResolver(),
-            a4_pixel_tolerance=1,
+            autotile_pixel_tolerance=1,
         )
         .convert(
             make_analysis(
@@ -814,3 +858,249 @@ def test_preserves_source_path() -> None:
     sheet = result.tilesets[0].sheets[0]
 
     assert sheet.source_path == source
+
+
+def test_a3_unfolds_unique_tiles(tmp_path: Path) -> None:
+    """An A3 sheet unfolds to its 512 compositions, packed 16 per row."""
+
+    source_path = tmp_path / "Inside_A3.png"
+
+    write_a3_sheet(source_path)
+
+    sheet = (
+        SimpleConverter()
+        .convert(
+            make_analysis(
+                make_sheet("Inside", SheetType.A3, 768, 384, path=source_path),
+            )
+        )
+        .tilesets[0]
+        .sheets[0]
+    )
+
+    assert sheet.sheet_type == SheetType.A3
+    assert len(sheet.tiles) == 512
+
+    # 512 tiles pack on a 16-per-row grid: 32 rows of 48px.
+    assert sheet.width == 768
+    assert sheet.height == 32 * 48
+    assert sheet.columns == 16
+    assert sheet.rows == 32
+
+    # First tile: kind 0, shape 0, packed at the region's origin.
+    first = sheet.tiles[0]
+
+    assert first.ref.index == 0
+    assert (first.x, first.y) == (0, 0)
+    assert (first.column, first.row) == (0, 0)
+
+    # Kind 0 keeps its first 16 shapes only (48 IDs cycle 16 shapes):
+    # kind 1 starts right after.
+    assert sheet.tiles[15].ref.index == 15
+    assert sheet.tiles[16].ref.index == 48
+    assert (sheet.tiles[16].column, sheet.tiles[16].row) == (1, 0)
+
+
+def test_a3_rejects_non_canonical_dimensions(tmp_path: Path) -> None:
+    analysis = make_analysis(
+        make_sheet(
+            "Inside",
+            SheetType.A3,
+            768,
+            576,
+        )
+    )
+
+    with pytest.raises(ValueError):
+        SimpleConverter().convert(analysis)
+
+
+def test_a3_deduplicates_graphically_identical_tiles(
+    tmp_path: Path,
+) -> None:
+    """Tiles that render identically are packed only once.
+
+    A fully uniform A3 sheet makes every quarter identical: all 1536
+    raw shape variants compose the exact same 48x48 tile, so the whole
+    sheet collapses to a single packed tile (the first engine ID).
+    """
+
+    source_path = tmp_path / "Inside_A3.png"
+
+    write_a3_sheet(source_path, uniform_band=(0, 384))
+
+    sheet = (
+        SimpleConverter()
+        .convert(
+            make_analysis(
+                make_sheet(
+                    "Inside",
+                    SheetType.A3,
+                    768,
+                    384,
+                    path=source_path,
+                )
+            )
+        )
+        .tilesets[0]
+        .sheets[0]
+    )
+
+    assert len(sheet.tiles) == 1
+
+    only = sheet.tiles[0]
+
+    assert only.ref.index == 0
+    assert (only.x, only.y) == (0, 0)
+
+    assert sheet.rows == 1
+    assert sheet.height == 48
+
+
+def test_a3_pixel_dedup_merges_across_autotile_kinds(
+    tmp_path: Path,
+) -> None:
+    """Graphically identical tiles merge even across autotile kinds.
+
+    Kinds 0-7 are the Roof row of the first band (source rows
+    y=0..96). Painting that pixel band with one flat colour makes
+    every composition of those eight kinds render identically, so they
+    collapse to a single packed tile while all other autotiles keep
+    their full set of distinct shapes:
+
+        1 merged tile + 24 kinds x 16 shapes = 385.
+    """
+
+    source_path = tmp_path / "Inside_A3.png"
+
+    write_a3_sheet(source_path, uniform_band=(0, 96))
+
+    sheet = (
+        SimpleConverter()
+        .convert(
+            make_analysis(
+                make_sheet(
+                    "Inside",
+                    SheetType.A3,
+                    768,
+                    384,
+                    path=source_path,
+                )
+            )
+        )
+        .tilesets[0]
+        .sheets[0]
+    )
+
+    indexes = [tile.ref.index for tile in sheet.tiles]
+
+    assert len(indexes) == 1 + 24 * 16
+
+    # The merged tile is the first Roof engine ID (kind 0, shape 0).
+    assert 0 in indexes
+
+    # No other kind of the first band survives: every shape of
+    # kinds 0..7 rendered identically to (kind 0, shape 0).
+    assert 48 not in indexes
+    assert 7 * 48 + 15 not in indexes
+
+    # The second band's kinds are untouched.
+    assert 16 * 48 + 15 in indexes
+    assert 31 * 48 + 15 in indexes
+
+    # Survivors still occupy sequential packed slots (16 per row).
+    slots = {(tile.x // 48, tile.y // 48) for tile in sheet.tiles}
+    assert slots == {(slot % 16, slot // 16) for slot in range(len(indexes))}
+
+    assert sheet.rows == math.ceil(len(indexes) / 16)
+
+
+def test_a3_tile_ids_map_to_engine_ids(tmp_path: Path) -> None:
+    """Unfolded A3 tiles map to ID = TILE_ID_A3 + kind*48 + shape."""
+
+    source_path = tmp_path / "Inside_A3.png"
+
+    write_a3_sheet(source_path)
+
+    sheet = (
+        SimpleConverter()
+        .convert(
+            make_analysis(
+                make_sheet("Inside", SheetType.A3, 768, 384, path=source_path),
+            )
+        )
+        .tilesets[0]
+        .sheets[0]
+    )
+
+    first = sheet.tiles[0]
+
+    assert first.ref.index == 0
+    assert tile_to_tile_id(first) == 4352 + 0
+
+    # Autotile 1 = local_kind 0, shape 1.
+    assert tile_to_tile_id(sheet.tiles[1]) == 4352 + 1
+
+    # Shape 9 of kind 0, the start of kind 1 (index 48) and the start
+    # of kind 3 (index 144 — the 49th tile, since every kind keeps its
+    # first 16 shapes only).
+    assert tile_to_tile_id(sheet.tiles[9]) == 4352 + 9
+    assert sheet.tiles[16].ref.index == 48
+    assert tile_to_tile_id(sheet.tiles[16]) == 4352 + 48
+    assert sheet.tiles[48].ref.index == 144
+    assert tile_to_tile_id(sheet.tiles[48]) == 4352 + 144
+
+
+def test_merge_groups_a3_and_a4_into_the_autotile_output(
+    tmp_path: Path,
+) -> None:
+    """A3 and A4 sheets of one prefix stack into ``<prefix>_Autotile``."""
+
+    a3_path = tmp_path / "Inside_A3.png"
+    a4_path = tmp_path / "Inside_A4.png"
+
+    write_a3_sheet(a3_path)
+    write_a4_sheet(a4_path)
+
+    analysis = make_analysis(
+        make_sheet("Inside", SheetType.A3, 768, 384, path=a3_path),
+        make_sheet("Inside", SheetType.A4, 768, 720, path=a4_path),
+        make_sheet("Inside", SheetType.B, 768, 768),
+    )
+
+    result = SimpleConverter().convert(analysis)
+
+    assert [tileset.name for tileset in result.tilesets] == [
+        "Inside_Autotile",
+        "Inside",
+    ]
+
+    autotile_tileset = result.tilesets[0]
+
+    # Canonical stacking order: the A3 buildings under the A4 walls.
+    assert [
+        sheet.sheet_type for sheet in autotile_tileset.sheets
+    ] == [SheetType.A3, SheetType.A4]
+
+    assert len(autotile_tileset.sheets[0].tiles) == 512
+    assert len(autotile_tileset.sheets[1].tiles) == 1536
+
+
+def test_no_merge_keeps_a3_sheet_split(tmp_path: Path) -> None:
+    """--no-merge never creates the merged ``_Autotile`` output."""
+
+    a3_path = tmp_path / "Inside_A3.png"
+
+    write_a3_sheet(a3_path)
+
+    analysis = make_analysis(
+        make_sheet("Inside", SheetType.A3, 768, 384, path=a3_path),
+        make_sheet("Inside", SheetType.B, 768, 768),
+    )
+
+    result = SimpleConverter(no_merge=True).convert(analysis)
+
+    assert [tileset.name for tileset in result.tilesets] == [
+        "Inside_A3",
+        "Inside_B",
+    ]

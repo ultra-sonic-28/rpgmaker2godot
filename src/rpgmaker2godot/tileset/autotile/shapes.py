@@ -70,7 +70,8 @@ FLOOR_AUTOTILE_TABLE: tuple[AutotileShape, ...] = (
 )
 
 
-# A4 "Wall Side": square / wall autotile, 16 shapes,
+# A4 "Wall Side" — and A3 "Roof"/"Wall" buildings, which compose from
+# the same table: square / wall autotile, 16 shapes,
 # verbatim from rmmz_core.js (Tilemap.WALL_AUTOTILE_TABLE).
 WALL_AUTOTILE_TABLE: tuple[AutotileShape, ...] = (
     ((2, 2), (1, 2), (2, 1), (1, 1)),   # 0

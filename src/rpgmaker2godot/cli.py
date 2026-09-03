@@ -120,7 +120,7 @@ def _print_step(
 
 # Maximum number of terrain-set names kept on the "[4/5] Resolving terrain
 # definitions" detail line; the remainder is summarized so a fully-drawn
-# A4 sheet never produces a single, unboundedly long line.
+# A3/A4 sheet never produces a single, unboundedly long line.
 _MAX_TERRAIN_NAMES = 6
 
 
@@ -145,7 +145,7 @@ def _print_terrain_resolution(
     set_count = len(resolution.terrain_sets)
 
     if set_count == 0:
-        print(f"  {tileset_name}: no terrain sets (no A4 autotiles)")
+        print(f"  {tileset_name}: no terrain sets (no A3/A4 autotiles)")
         return
 
     names = _join_terrain_names(
@@ -437,7 +437,7 @@ def _run_tileset_mode(
                 )
             ),
             no_merge=args.no_merge,
-            a4_pixel_tolerance=args.tolerance,
+            autotile_pixel_tolerance=args.tolerance,
         )
 
         print(
@@ -451,7 +451,7 @@ def _run_tileset_mode(
 
         converter = SimpleConverter(
             no_merge=args.no_merge,
-            a4_pixel_tolerance=args.tolerance,
+            autotile_pixel_tolerance=args.tolerance,
         )
 
     _print_step(3, "Converting tiles", TILESET_TOTAL_STEPS)
@@ -603,9 +603,9 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         default=0,
         help=(
-            "Merge unfolded A4 tiles whose pixel difference is within "
-            "N pixels, discarding source-image noise (default: 0, "
-            "byte-exact match)."
+            "Merge unfolded A3/A4 autotile tiles whose pixel difference "
+            "is within N pixels, discarding source-image noise "
+            "(default: 0, byte-exact match)."
         ),
     )
 
@@ -613,7 +613,7 @@ def main(argv: list[str] | None = None) -> int:
         "--no-terrains",
         action="store_true",
         help=(
-            "Skip Godot terrain generation for the unfolded A4 "
+            "Skip Godot terrain generation for the unfolded A3/A4 "
             "autotiles (terrains power the automatic connection tool "
             "in the Godot editor)."
         ),

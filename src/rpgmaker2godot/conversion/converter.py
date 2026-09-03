@@ -15,6 +15,14 @@ from rpgmaker2godot.model import (
 )
 from rpgmaker2godot.model.enums import SheetType
 from rpgmaker2godot.model.tile_collision import TileCollision
+from rpgmaker2godot.tileset.autotile.a3 import (
+    A3_HEIGHT,
+    A3_PACK_COLUMNS,
+    A3_PACK_WIDTH,
+    A3_SHAPES_PER_AUTOTILE,
+    A3_WIDTH,
+    a3_unique_tiles,
+)
 from rpgmaker2godot.tileset.autotile.a4 import (
     A4_HEIGHT,
     A4_PACK_COLUMNS,
@@ -55,7 +63,7 @@ class SimpleConverter:
         *,
         tile_properties_resolver: TilePropertiesResolver | None = None,
         no_merge: bool = False,
-        a4_pixel_tolerance: int = 0,
+        autotile_pixel_tolerance: int = 0,
     ) -> None:
         self._tile_properties_resolver = (
             tile_properties_resolver
@@ -66,14 +74,14 @@ class SimpleConverter:
         self._no_merge = no_merge
 
         # Maximum number of pixels that may differ between two unfolded
-        # A4 tiles for them to merge (0 = byte-exact, the default).
-        if a4_pixel_tolerance < 0:
+        # A3/A4 tiles for them to merge (0 = byte-exact, the default).
+        if autotile_pixel_tolerance < 0:
             raise ValueError(
-                "a4_pixel_tolerance must be >= 0, "
-                f"got {a4_pixel_tolerance}."
+                "autotile_pixel_tolerance must be >= 0, "
+                f"got {autotile_pixel_tolerance}."
             )
 
-        self._a4_pixel_tolerance = a4_pixel_tolerance
+        self._autotile_pixel_tolerance = autotile_pixel_tolerance
 
     def convert(self, analysis: AnalysisResult) -> ConversionResult:
         """Convert the analysis into output tilesets.
@@ -171,6 +179,12 @@ class SimpleConverter:
         ``<prefix>_Autotile``.
         """
 
+        if sheet_info.sheet_type == SheetType.A3:
+            return self._convert_a3_sheet(
+                rpg_tileset_name,
+                sheet_info,
+            )
+
         if sheet_info.sheet_type == SheetType.A4:
             return self._convert_a4_sheet(
                 rpg_tileset_name,
@@ -195,6 +209,97 @@ class SimpleConverter:
             columns=sheet_info.columns,
             rows=sheet_info.rows,
             tiles=tiles,
+        )
+
+    def _convert_a3_sheet(
+        self,
+        rpg_tileset_name: str,
+        sheet_info: SheetInfo,
+    ) -> Sheet:
+        """Convert an A3 building-autotile sheet into its unfolded tiles.
+
+        The A3 sheet (``*_A3.png``, 768x384) stores 32 autotile
+        **sources**: 8 columns of 96px x 4 vertical slots of 96x96,
+        alternating Roof and Wall rows. Following the authoritative
+        mapping in ``rmmz_core.js``, every A3 autotile — Roof or Wall —
+        composes from the shared 16-shape WALL_AUTOTILE_TABLE.
+
+        RPG Maker reserves 48 shape IDs per kind although the Wall
+        table only holds 16 shapes: those extra IDs compose
+        pixel-identical tiles. Only the **graphically distinct** tiles
+        are kept (``a3_unique_tiles``): the 1536 raw variants reduce to
+        512 distinct compositions (32 kinds x 16 shapes), then to the
+        image-dependent number of tiles that truly render differently.
+        Graphically identical tiles stay separate when they resolve to
+        a different collision.
+
+        The sheet's conversion metadata describes the **packed**
+        result (16 tiles per row, matching the other sheets' 768px
+        width), not the source image.
+        """
+
+        if (
+            sheet_info.width != A3_WIDTH
+            or sheet_info.height != A3_HEIGHT
+        ):
+            raise ValueError(
+                f"{sheet_info.path.name}: A3 sheets must be "
+                f"{A3_WIDTH}x{A3_HEIGHT}px, got "
+                f"{sheet_info.width}x{sheet_info.height}px."
+            )
+
+        source = Image.open(sheet_info.path).convert("RGBA")
+
+        try:
+            unique = list(
+                a3_unique_tiles(
+                    source,
+                    tolerance=self._autotile_pixel_tolerance,
+                    dedup_key=self._a3_dedup_key(rpg_tileset_name),
+                )
+            )
+        finally:
+            source.close()
+
+        tiles: list[Tile] = []
+
+        for index, _quarters in unique:
+            local_kind = index // A3_SHAPES_PER_AUTOTILE
+
+            # Packed atlas position: insertion order on the 16-per-row
+            # grid (duplicated variants were already skipped).
+            slot = len(tiles)
+            x = (slot % A3_PACK_COLUMNS) * 48
+            y = (slot // A3_PACK_COLUMNS) * 48
+
+            tile = self._create_tile(
+                rpg_tileset_name=rpg_tileset_name,
+                sheet_type=SheetType.A3,
+                index=index,
+                column=local_kind % 8,
+                row=local_kind // 8,
+                x=x,
+                y=y,
+                width=48,
+                height=48,
+            )
+
+            tiles.append(
+                self._resolve_tile_properties(tile)
+            )
+
+        pack_rows = math.ceil(len(tiles) / A3_PACK_COLUMNS)
+
+        return Sheet(
+            sheet_type=SheetType.A3,
+            source_path=sheet_info.path,
+            width=A3_PACK_WIDTH,
+            height=pack_rows * 48,
+            tile_width=48,
+            tile_height=48,
+            columns=A3_PACK_COLUMNS,
+            rows=pack_rows,
+            tiles=tuple(tiles),
         )
 
     def _convert_a4_sheet(
@@ -240,7 +345,7 @@ class SimpleConverter:
             unique = list(
                 a4_unique_tiles(
                     source,
-                    tolerance=self._a4_pixel_tolerance,
+                    tolerance=self._autotile_pixel_tolerance,
                     dedup_key=self._a4_dedup_key(rpg_tileset_name),
                 )
             )
@@ -337,12 +442,57 @@ class SimpleConverter:
 
         return dedup_key
 
+    def _a3_dedup_key(
+        self,
+        rpg_tileset_name: str,
+    ) -> Callable[[int, bytes], TileCollision] | None:
+        """Build the duplicate-identity hook for the A3 pixel dedup.
+
+        Mirrors :meth:`_a4_dedup_key` for the A3 sheet: the pixel
+        comparison itself (byte-exact, or within the configured
+        tolerance) is handled by ``a3_unique_tiles``, and this hook only
+        adds the collision as an extra identity so graphically identical
+        tiles resolving to a different passage stay separate.
+        """
+
+        if self._tile_properties_resolver is None:
+            return None
+
+        resolver = self._tile_properties_resolver
+
+        def dedup_key(
+            index: int,
+            signature: bytes,
+        ) -> TileCollision:
+            tile = Tile(
+                ref=TileRef(
+                    tileset=rpg_tileset_name,
+                    sheet_type=SheetType.A3,
+                    index=index,
+                ),
+                column=0,
+                row=0,
+                x=0,
+                y=0,
+                width=48,
+                height=48,
+            )
+
+            properties = resolver.resolve(tile)
+
+            return tile_properties_to_collision(
+                properties,
+                tile_id=tile_to_tile_id(tile),
+            )
+
+        return dedup_key
+
     def _sheet_tiles(
         self,
         rpg_tileset_name: str,
         sheet_info: SheetInfo,
     ) -> Iterator[Tile]:
-        """Stream the tiles of a regular (non-A4) sheet grid."""
+        """Stream the tiles of a regular (non-autotile) sheet grid."""
         geometry = (
             (
                 column * sheet_info.tile_width,

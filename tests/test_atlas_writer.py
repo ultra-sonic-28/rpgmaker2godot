@@ -250,6 +250,78 @@ def test_writes_a4_quarter_composed_tile(
     source.close()
 
 
+def test_writes_a3_quarter_composed_tile(
+    tmp_path: Path,
+) -> None:
+    """An A3 placement composes its four 24x24 quarters in the atlas.
+
+    Build a minimal 768x384 A3 sheet where each 24x24 quarter has a
+    unique colour, then export an unfolded tile and check that the
+    resulting atlas cell contains the four quarters selected by the
+    engine shape table (here Roof, autotile 0, shape 0).
+    """
+
+    from rpgmaker2godot.tileset.autotile.a3 import a3_shape_quarters
+
+    source_path = tmp_path / "Inside_A3.png"
+    source = Image.new("RGBA", (768, 384))
+    for y in range(0, 384, 24):
+        for x in range(0, 768, 24):
+            qx, qy = x // 24, y // 24
+            # Deterministic unique colour per quarter.
+            source.paste(
+                ((qx * 37) % 256, (qy * 61) % 256, (qx + qy * 3) % 256, 255),
+                (x, y, x + 24, y + 24),
+            )
+    source.save(source_path)
+
+    # Use SimpleConverter to unfold the A3 sheet into tiles.
+    from rpgmaker2godot.analysis.detector import TilesetDetector
+    from rpgmaker2godot.conversion.converter import SimpleConverter
+
+    analysis = TilesetDetector().analyze(tmp_path)
+    conversion = SimpleConverter().convert(analysis)
+
+    tileset = conversion.tilesets[0]
+    # Placements for the whole tileset (A3 only here).
+    atlas = AtlasBuilder().build(tileset)
+
+    # Take the placement for tile index 0 (autotile 0, shape 0).
+    a3_placements = [
+        p
+        for p in atlas.placements
+        if p.tile.sheet_type == SheetType.A3
+    ]
+    assert len(a3_placements) == 32 * 16
+    placement0 = a3_placements[0]
+
+    # Atlas position of the first A3 tile (in the packed region).
+    ax, ay = placement0.atlas_x, placement0.atlas_y
+    assert (ax, ay) == (0, 0)
+
+    # The engine shape table picks quarters for (kind 0, shape 0).
+    quarters = a3_shape_quarters(0, 0)
+
+    output_path = tmp_path / "atlas.png"
+    AtlasWriter().write(atlas, output_path)
+
+    with Image.open(output_path) as image:
+        # Each 24x24 quadrant of the atlas tile must carry the colour of
+        # the matching source quarter.
+        for index, (qx, qy, dx, dy) in enumerate(quarters):
+            # The source quarter colour.
+            sx, sy = qx, qy
+            expected = source.getpixel((sx + 12, sy + 12))
+            # The atlas pixel at the destination quadrant's centre.
+            actual = image.getpixel((ax + dx + 12, ay + dy + 12))
+            assert actual == expected, (
+                f"quarter {index}: expected {expected} got {actual}"
+            )
+
+    image.close()
+    source.close()
+
+
 def test_writes_a4_autotile_on_transparent_background(
     tmp_path: Path,
 ) -> None:

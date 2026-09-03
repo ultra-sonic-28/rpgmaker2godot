@@ -81,6 +81,54 @@ def compose_autotile(
     return tile
 
 
+def compose_quarters(
+    source: Image.Image,
+    quarters: tuple[tuple[int, int, int, int], ...],
+) -> Image.Image:
+    """Build one 48x48 tile from absolute quarter coordinates.
+
+    ``quarters`` is a ``(qx, qy, dx, dy)`` tuple in draw order, as
+    produced by ``a3_shape_quarters`` / ``a4_shape_quarters``:
+    ``(qx, qy)`` locates the 24x24 piece in ``source`` (absolute
+    pixel coordinates) and ``(dx, dy)`` places it inside the resulting
+    tile.
+
+    Returns:
+        A new 48x48 RGBA image assembled from the four quarters.
+    """
+
+    if len(quarters) != 4:
+        raise ValueError(
+            f"An autotile tile must pick exactly 4 quarters, "
+            f"got {len(quarters)}."
+        )
+
+    tile = Image.new(
+        "RGBA",
+        (TILE_SIZE, TILE_SIZE),
+        (0, 0, 0, 0),
+    )
+
+    for quarter_x, quarter_y, dest_x, dest_y in quarters:
+        piece = source.crop(
+            (
+                quarter_x,
+                quarter_y,
+                quarter_x + QUARTER_SIZE,
+                quarter_y + QUARTER_SIZE,
+            )
+        )
+
+        tile.alpha_composite(
+            piece,
+            (dest_x, dest_y),
+        )
+
+        piece.close()
+
+    return tile
+
+
 def unfold_autotile(
     source: Image.Image,
     *,

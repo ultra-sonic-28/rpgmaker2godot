@@ -22,10 +22,11 @@ The Wall Side source occupies a 96x96 region and the Wall Top source a
 
 from collections.abc import Callable, Hashable, Iterator
 
-from PIL import Image, ImageChops
+from PIL import Image
 
-from .composer import QUARTER_SIZE, compose_autotile
+from .composer import QUARTER_SIZE
 from .shapes import FLOOR_AUTOTILE_TABLE, WALL_AUTOTILE_TABLE
+from .unique import Quarters, unique_tiles
 
 # One autotile occupies a 96px-wide source slot, exactly two tiles wide.
 A4_SLOT_WIDTH = 96
@@ -122,9 +123,7 @@ def a4_shape_quarters(
     )
 
 
-def a4_unique_compositions() -> Iterator[
-    tuple[int, tuple[tuple[int, int, int, int], ...]]
-]:
+def a4_unique_compositions() -> Iterator[tuple[int, Quarters]]:
     """Yield ``(index, quarters)`` for each **distinct** A4 composition.
 
     RPG Maker reserves 48 shape IDs per autotile kind, but the Wall
@@ -144,7 +143,7 @@ def a4_unique_compositions() -> Iterator[
     (absolute source coordinates, draw order).
     """
 
-    seen: set[tuple[tuple[int, int, int, int], ...]] = set()
+    seen: set[Quarters] = set()
 
     for local_kind in range(A4_AUTOTILE_COUNT):
         for shape in range(A4_SHAPES_PER_AUTOTILE):
@@ -163,7 +162,7 @@ def a4_unique_tiles(
     *,
     tolerance: int = 0,
     dedup_key: Callable[[int, bytes], Hashable] | None = None,
-) -> Iterator[tuple[int, tuple[tuple[int, int, int, int], ...]]]:
+) -> Iterator[tuple[int, Quarters]]:
     """Yield ``(index, quarters)`` for each **graphically distinct** tile.
 
     Walks :func:`a4_unique_compositions` in engine ID order, composes
@@ -208,159 +207,12 @@ def a4_unique_tiles(
             f"tolerance must be >= 0, got {tolerance}."
         )
 
-    # Exact matches resolve through a set: O(1) per candidate. In
-    # tolerance mode a dropped candidate is recorded too, so a later
-    # candidate with the very same pixels short-circuits.
-    seen_exact: set[tuple[bytes, Hashable]] = set()
-
-    # Tolerance matches need the kept tiles' pixels: they live until
-    # the generator is exhausted, then get closed. Kept tiles are
-    # indexed by byte-sum bucket (see _find_tolerance_duplicate).
-    kept: list[tuple[Hashable, int]] = []
-    kept_images: list[Image.Image] = []
-    buckets: dict[int, list[int]] = {}
-    bucket_width = tolerance * _MAX_BYTE_DELTA_PER_PIXEL + 1
-
-    try:
-        for index, quarters in a4_unique_compositions():
-            local_kind, shape = divmod(index, A4_SHAPES_PER_AUTOTILE)
-
-            source_x, source_y, is_wall_side = a4_source_region(local_kind)
-
-            table = (
-                WALL_AUTOTILE_TABLE
-                if is_wall_side
-                else FLOOR_AUTOTILE_TABLE
-            )
-
-            tile = compose_autotile(
-                source,
-                source_x=source_x,
-                source_y=source_y,
-                shape=table[shape % len(table)],
-            )
-
-            signature = tile.tobytes()
-
-            key = (
-                dedup_key(index, signature)
-                if dedup_key is not None
-                else None
-            )
-
-            if (signature, key) in seen_exact:
-                tile.close()
-                continue
-
-            duplicate = False
-
-            if tolerance > 0:
-                duplicate = _find_tolerance_duplicate(
-                    tile,
-                    signature,
-                    key,
-                    tolerance=tolerance,
-                    bucket_width=bucket_width,
-                    kept=kept,
-                    kept_images=kept_images,
-                    buckets=buckets,
-                )
-
-            seen_exact.add((signature, key))
-
-            if duplicate:
-                tile.close()
-                continue
-
-            if tolerance > 0:
-                tile_sum = sum(signature)
-                kept.append((key, tile_sum))
-                kept_images.append(tile)
-                buckets.setdefault(
-                    tile_sum // bucket_width,
-                    [],
-                ).append(len(kept) - 1)
-            else:
-                tile.close()
-
-            yield index, quarters
-    finally:
-        for image in kept_images:
-            image.close()
-
-
-def _pixel_difference_count(
-    first: Image.Image,
-    second: Image.Image,
-) -> int:
-    """Count the pixels differing in any RGBA channel between two tiles."""
-
-    difference = ImageChops.difference(first, second)
-
-    red, green, blue, alpha = difference.split()
-
-    any_channel = ImageChops.lighter(
-        ImageChops.lighter(red, green),
-        ImageChops.lighter(blue, alpha),
+    return unique_tiles(
+        a4_unique_compositions(),
+        source,
+        tolerance=tolerance,
+        dedup_key=dedup_key,
     )
-
-    return sum(any_channel.histogram()[1:])
-
-
-# Each differing pixel changes a tile's total byte sum by at most
-# 4 channels x 255. This bounds the safe pre-filter used by the
-# tolerance deduplication.
-_MAX_BYTE_DELTA_PER_PIXEL = 4 * 255
-
-
-def _find_tolerance_duplicate(
-    tile: Image.Image,
-    signature: bytes,
-    key: Hashable,
-    *,
-    tolerance: int,
-    bucket_width: int,
-    kept: list[tuple[Hashable, int]],
-    kept_images: list[Image.Image],
-    buckets: dict[int, list[int]],
-) -> bool:
-    """Return whether ``tile`` matches a kept tile within tolerance.
-
-    Only kept tiles whose byte sum is close enough to ``tile``'s are
-    compared pixel by pixel: two tiles differing by at most
-    ``tolerance`` pixels cannot differ by more than
-    ``tolerance * _MAX_BYTE_DELTA_PER_PIXEL`` in total byte sum, so the
-    pre-filter never hides a match. The ``key`` must also be equal.
-    """
-
-    tile_sum = sum(signature)
-
-    bucket = tile_sum // bucket_width
-
-    candidates = (
-        buckets.get(bucket - 1, [])
-        + buckets.get(bucket, [])
-        + buckets.get(bucket + 1, [])
-    )
-
-    max_sum_delta = tolerance * _MAX_BYTE_DELTA_PER_PIXEL
-
-    for kept_index in candidates:
-        kept_key, kept_sum = kept[kept_index]
-
-        if kept_key != key:
-            continue
-
-        if abs(kept_sum - tile_sum) > max_sum_delta:
-            continue
-
-        if (
-            _pixel_difference_count(kept_images[kept_index], tile)
-            <= tolerance
-        ):
-            return True
-
-    return False
 
 
 # Number of distinct A4 quarter compositions: the 2304 raw engine IDs

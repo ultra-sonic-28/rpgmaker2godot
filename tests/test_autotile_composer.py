@@ -10,6 +10,7 @@ from rpgmaker2godot.tileset.autotile import (
     unfold_floor_autotile,
     unfold_wall_autotile,
 )
+from rpgmaker2godot.tileset.autotile.a3 import a3_source_region, a3_unique_tiles
 from rpgmaker2godot.tileset.autotile.a4 import a4_source_region, a4_unique_tiles
 
 
@@ -330,5 +331,223 @@ def test_a4_unique_tiles_tolerance_merges_noisy_variants() -> None:
     assert len(tolerant) == 1
     assert tolerant[0][0] == 0
     assert tolerant[0][1] == a4_shape_quarters(0, 0)
+
+    source.close()
+
+
+def test_a3_source_region_maps_slots() -> None:
+    # Column 0, topmost row (Roof, band 1).
+    assert a3_source_region(0) == (0, 0)
+
+    # Column 7 (last), same top row: Roof at (7*96, 0).
+    assert a3_source_region(7) == (672, 0)
+
+    # Column 0, second row (Wall) at (0, 96).
+    assert a3_source_region(8) == (0, 96)
+
+    # Column 3, row 3 (Wall, band 2): (3*96, 3*96).
+    assert a3_source_region(3 * 8 + 3) == (288, 288)
+
+    # Last autotile (slot 31): tx=7, Wall of band 2 at (7*96, 3*96).
+    assert a3_source_region(31) == (672, 288)
+
+
+def test_a3_source_region_rejects_out_of_range_kinds() -> None:
+    from rpgmaker2godot.tileset.autotile.a3 import A3_AUTOTILE_COUNT
+
+    with pytest.raises(ValueError):
+        a3_source_region(A3_AUTOTILE_COUNT)
+
+    with pytest.raises(ValueError):
+        a3_source_region(-1)
+
+
+def test_a3_shape_quarters_use_the_wall_table() -> None:
+    """Every A3 autotile — Roof or Wall — cycles WALL_AUTOTILE_TABLE."""
+
+    from rpgmaker2godot.tileset.autotile.a3 import a3_shape_quarters
+
+    # Shape 0 = ((2, 2), (1, 2), (2, 1), (1, 1)), offset by the source
+    # region of kind 5: (5*96, 0) = (480, 0).
+    quarters = a3_shape_quarters(5, 0)
+
+    assert quarters[0] == (480 + 2 * QUARTER_SIZE, 0 + 2 * QUARTER_SIZE, 0, 0)
+    assert quarters[3] == (
+        480 + 1 * QUARTER_SIZE,
+        0 + 1 * QUARTER_SIZE,
+        QUARTER_SIZE,
+        QUARTER_SIZE,
+    )
+
+    # Shape 47 cycles back to the wall table's shape 15.
+    assert a3_shape_quarters(0, 47) == a3_shape_quarters(0, 15)
+
+    # Shapes 16..47 duplicate shapes 0..15.
+    for shape in range(16, 48):
+        assert a3_shape_quarters(2, shape) == a3_shape_quarters(
+            2,
+            shape - 16,
+        )
+
+
+def test_a3_unique_compositions_yield_512_tiles() -> None:
+    """The 1536 raw A3 shape IDs reduce to 512 distinct compositions."""
+
+    from collections import Counter
+
+    from rpgmaker2godot.tileset.autotile.a3 import (
+        A3_SHAPES_PER_AUTOTILE,
+        A3_UNIQUE_COMPOSITION_COUNT,
+        a3_shape_quarters,
+        a3_unique_compositions,
+    )
+
+    unique = list(a3_unique_compositions())
+
+    assert A3_UNIQUE_COMPOSITION_COUNT == 512
+    assert len(unique) == 512
+
+    # First occurrences, emitted in ascending engine ID order.
+    indexes = [index for index, _quarters in unique]
+    assert indexes == sorted(indexes)
+
+    # Each entry matches its (kind, shape) decoding.
+    for index, quarters in unique:
+        kind, shape = divmod(index, A3_SHAPES_PER_AUTOTILE)
+        assert quarters == a3_shape_quarters(kind, shape)
+
+    # No composition is emitted twice.
+    compositions = {quarters for _index, quarters in unique}
+    assert len(compositions) == len(unique)
+
+    # Every kind contributes exactly its 16 distinct wall shapes.
+    per_kind = Counter(
+        index // A3_SHAPES_PER_AUTOTILE for index, _quarters in unique
+    )
+    assert sorted(set(per_kind.values())) == [16]
+    assert len(per_kind) == 32
+
+
+def test_a3_unique_tiles_merges_graphically_identical_tiles() -> None:
+    """Compositions that render identically collapse to one tile.
+
+    A fully uniform A3 sheet makes every 24x24 quarter identical: all
+    1536 raw variants compose the exact same 48x48 tile, so a single
+    entry survives — the first engine ID (kind 0, shape 0).
+    """
+
+    from rpgmaker2godot.tileset.autotile.a3 import a3_shape_quarters
+
+    source = Image.new("RGBA", (768, 384), (90, 90, 90, 255))
+
+    unique = list(a3_unique_tiles(source))
+
+    assert len(unique) == 1
+
+    index, quarters = unique[0]
+
+    assert index == 0
+    assert quarters == a3_shape_quarters(0, 0)
+
+    source.close()
+
+
+def test_a3_unique_tiles_keeps_all_distinct_compositions() -> None:
+    """Injective quarters: pixel dedup behaves like composition dedup.
+
+    When every 24x24 quarter of the sheet is visually unique, two
+    compositions can only render identically if they select the same
+    quarters — already removed by a3_unique_compositions. The pixel
+    pass must therefore keep exactly the same 512 entries.
+    """
+
+    from rpgmaker2godot.tileset.autotile.a3 import a3_unique_compositions
+
+    source = Image.new("RGBA", (768, 384))
+
+    for y in range(0, 384, 24):
+        for x in range(0, 768, 24):
+            qx, qy = x // 24, y // 24
+
+            source.paste(
+                (
+                    (qx * 37) % 256,
+                    (qy * 61) % 256,
+                    (qx + qy * 3) % 256,
+                    255,
+                ),
+                (x, y, x + 24, y + 24),
+            )
+
+    unique = list(a3_unique_tiles(source))
+
+    assert len(unique) == 512
+    assert [index for index, _ in unique] == [
+        index for index, _ in a3_unique_compositions()
+    ]
+
+    source.close()
+
+
+def test_a3_unique_tiles_accepts_custom_dedup_key() -> None:
+    """A custom key replaces the pixel signature as the identity."""
+
+    from rpgmaker2godot.tileset.autotile.a3 import (
+        A3_UNIQUE_COMPOSITION_COUNT,
+    )
+
+    source = Image.new("RGBA", (768, 384), (90, 90, 90, 255))
+
+    unique = list(
+        a3_unique_tiles(
+            source,
+            dedup_key=lambda index, signature: index,
+        )
+    )
+
+    # Keying by engine index keeps every composition alive.
+    assert len(unique) == A3_UNIQUE_COMPOSITION_COUNT
+
+    source.close()
+
+
+def test_a3_unique_tiles_rejects_negative_tolerance() -> None:
+    """A negative tolerance is rejected before any composition runs."""
+
+    source = Image.new("RGBA", (96, 96), (90, 90, 90, 255))
+
+    with pytest.raises(ValueError):
+        list(a3_unique_tiles(source, tolerance=-1))
+
+    source.close()
+
+
+def test_a3_unique_tiles_tolerance_merges_noisy_variants() -> None:
+    """Variants differing by a few stray pixels merge within tolerance.
+
+    A uniform sheet plus one changed pixel at (5, 5) — inside the
+    quarter (0, 0) — makes the wall shapes selecting that quarter
+    (kind 0, shapes 3, 7, 11 and 15) differ from the uniform ones.
+    Their three remaining quarters are uniform either way, so those
+    four variants render identically: exact dedup keeps two tiles (the
+    uniform one and the first noisy one), tolerance 1 keeps only the
+    first.
+    """
+
+    from rpgmaker2godot.tileset.autotile.a3 import a3_shape_quarters
+
+    source = Image.new("RGBA", (768, 384), (90, 90, 90, 255))
+    source.putpixel((5, 5), (255, 0, 0, 255))
+
+    exact = list(a3_unique_tiles(source))
+
+    assert [index for index, _ in exact] == [0, 3]
+    assert exact[1][1] == a3_shape_quarters(0, 3)
+
+    tolerant = list(a3_unique_tiles(source, tolerance=1))
+
+    assert len(tolerant) == 1
+    assert tolerant[0][0] == 0
+    assert tolerant[0][1] == a3_shape_quarters(0, 0)
 
     source.close()

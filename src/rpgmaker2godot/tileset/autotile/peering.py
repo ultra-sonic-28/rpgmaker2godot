@@ -1,4 +1,4 @@
-"""Shape → peering-bit correspondence for the A4 autotile tables.
+"""Shape → peering-bit correspondence for the autotile tables.
 
 Godot's terrain system selects tiles by matching per-tile *peering bits*
 (expected terrain on each side/corner) against the neighbours painted by
@@ -17,7 +17,9 @@ constrained by:
 * coverage — the 48 floor shapes yield exactly 47 distinct
   configurations (the classic blob set) plus one duplicated isolated
   variant (shapes 46/47), and the 16 wall shapes yield all 16
-  side-only combinations.
+  side-only combinations. The A3 building autotiles (roofs and walls)
+  and the A4 Wall Sides compose from the wall table, so they all share
+  ``WALL_SHAPE_CONNECTIONS``.
 
 ``tests/test_terrain_peering.py`` re-runs the constraint solver and
 asserts the hardcoded tables below, so the mapping cannot drift.

@@ -153,3 +153,21 @@ def test_detects_a4_sheets(tmp_path: Path) -> None:
     assert a4.prefix == "Inside"
     assert a4.columns == 16
     assert a4.rows == 15
+
+
+def test_detects_a3_sheets(tmp_path: Path) -> None:
+    create_sheet(tmp_path, "Inside_A3.png", size=(48 * 16, 48 * 8))
+    create_sheet(tmp_path, "Inside_A4.png", size=(48 * 16, 48 * 15))
+
+    result = TilesetDetector().analyze(tmp_path)
+
+    assert [sheet.sheet_type for sheet in result.sheets] == [
+        SheetType.A3,
+        SheetType.A4,
+    ]
+
+    a3 = result.sheets[0]
+
+    assert a3.prefix == "Inside"
+    assert a3.columns == 16
+    assert a3.rows == 8

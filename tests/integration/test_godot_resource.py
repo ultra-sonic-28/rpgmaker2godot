@@ -900,3 +900,260 @@ def test_generated_a4_tileset_terrains_load_in_godot(
         f"STDOUT:\n{result.stdout}\n\n"
         f"STDERR:\n{result.stderr}"
     )
+
+
+@pytest.mark.integration
+def test_generated_a2_tileset_loads_in_godot(
+    tmp_path: Path,
+) -> None:
+    """The unfolded A2 tileset loads and exposes its unique tiles in Godot.
+
+    A single ``*_A2.png`` (768x576) sheet holds 32 autotiles unfolded
+    into 1536 raw shape variants; every shape is a distinct floor-table
+    composition, so nothing is dropped: 1536 unique tiles of 48x48 are
+    kept. They are packed 16 per row, giving an atlas of 768x4608
+    (96 rows). The generated ``.tres`` must load in Godot with every
+    one of those cells present.
+    """
+
+    godot = find_godot()
+
+    if godot is None:
+        pytest.skip(
+            "Godot executable not available. "
+            "Set the GODOT environment variable."
+        )
+
+    input_directory = tmp_path / "tilesets"
+    project_directory = tmp_path / "godot"
+    generated_directory = project_directory / "generated"
+
+    generated_directory.mkdir(parents=True, exist_ok=True)
+
+    # Distinct 24x24 quarters: the pixel-level deduplication keeps all
+    # 1536 unfolded tiles, whose full atlas must load in Godot.
+    input_directory.mkdir(parents=True, exist_ok=True)
+
+    a2_path = input_directory / "Inside_A2.png"
+
+    a2_sheet = Image.new("RGBA", (768, 576))
+
+    for y in range(0, 576, 24):
+        for x in range(0, 768, 24):
+            qx, qy = x // 24, y // 24
+
+            a2_sheet.paste(
+                (
+                    (qx * 37) % 256,
+                    (qy * 61) % 256,
+                    (qx + qy * 3) % 256,
+                    255,
+                ),
+                (x, y, x + 24, y + 24),
+            )
+
+    a2_sheet.save(a2_path)
+    a2_sheet.close()
+
+    analysis = TilesetDetector().analyze(input_directory)
+
+    conversion = SimpleConverter().convert(analysis)
+
+    SimpleExporter(
+        godot_project_root=project_directory,
+    ).export(
+        conversion,
+        generated_directory,
+    )
+
+    write_project(project_directory)
+
+    # The A2 sheet alone forms the <prefix>_Autotile merged output.
+    generated_png = generated_directory / "Inside_Autotile.png"
+    assert generated_png.exists()
+    assert generated_png.stat().st_size > 0
+
+    generated_tres = generated_directory / "Inside_Autotile.tres"
+    assert generated_tres.exists()
+    assert generated_tres.stat().st_size > 0
+
+    script_path = write_validation_script(
+        project_directory,
+        resource_path="res://generated/Inside_Autotile.tres",
+        expected_atlas_size=(768, 4608),
+        expected_columns=16,
+        expected_rows=96,
+        validate_all_cells=True,
+    )
+
+    subprocess.run(
+        [
+            godot,
+            "--headless",
+            "--path",
+            str(project_directory),
+            "--editor",
+            "--quit",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    result = subprocess.run(
+        [
+            godot,
+            "--headless",
+            "--path",
+            str(project_directory),
+            "--script",
+            str(script_path.name),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, (
+        "Godot failed to load the generated A2 TileSet.\n\n"
+        f"STDOUT:\n{result.stdout}\n\n"
+        f"STDERR:\n{result.stderr}"
+    )
+
+
+@pytest.mark.integration
+def test_generated_a2_tileset_terrains_load_in_godot(
+    tmp_path: Path,
+) -> None:
+    """The A2 tileset exposes one terrain set per ground material.
+
+    With every 24x24 quarter drawn, all 32 ground kinds are used, i.e.
+    32 terrain sets named ``Ground 1``..``Ground 32``, all using the
+    blob matching (MATCH_CORNERS_AND_SIDES) of the floor table. Cell
+    (0, 0) holds kind 0, shape 0 — a fully surrounded Ground expecting
+    the terrain on all eight peering directions.
+    """
+
+    godot = find_godot()
+
+    if godot is None:
+        pytest.skip(
+            "Godot executable not available. "
+            "Set the GODOT environment variable."
+        )
+
+    input_directory = tmp_path / "tilesets"
+    project_directory = tmp_path / "godot"
+    generated_directory = project_directory / "generated"
+
+    generated_directory.mkdir(parents=True, exist_ok=True)
+
+    # Distinct 24x24 quarters: the pixel-level deduplication keeps all
+    # 1536 unfolded tiles, whose full atlas must load in Godot.
+    input_directory.mkdir(parents=True, exist_ok=True)
+
+    a2_path = input_directory / "Inside_A2.png"
+
+    a2_sheet = Image.new("RGBA", (768, 576))
+
+    for y in range(0, 576, 24):
+        for x in range(0, 768, 24):
+            qx, qy = x // 24, y // 24
+
+            a2_sheet.paste(
+                (
+                    (qx * 37) % 256,
+                    (qy * 61) % 256,
+                    (qx + qy * 3) % 256,
+                    255,
+                ),
+                (x, y, x + 24, y + 24),
+            )
+
+    a2_sheet.save(a2_path)
+    a2_sheet.close()
+
+    analysis = TilesetDetector().analyze(input_directory)
+
+    conversion = SimpleConverter().convert(analysis)
+
+    SimpleExporter(
+        godot_project_root=project_directory,
+    ).export(
+        conversion,
+        generated_directory,
+    )
+
+    write_project(project_directory)
+
+    script_path = write_validation_script(
+        project_directory,
+        resource_path="res://generated/Inside_Autotile.tres",
+        expected_atlas_size=(768, 4608),
+        expected_columns=16,
+        expected_rows=96,
+        validate_all_cells=False,
+        expected_terrain_set_count=32,
+        expected_terrain_modes=(
+            (0, 0),
+            (1, 0),
+            (31, 0),
+        ),
+        expected_terrain_names=(
+            (0, "Ground 1"),
+            (1, "Ground 2"),
+            (31, "Ground 32"),
+        ),
+        expected_cell_terrains=(
+            ((0, 0), 0, 0),
+        ),
+        expected_cell_peering_bits=(
+            (
+                (0, 0),
+                (
+                    ("right_side", 0),
+                    ("bottom_right_corner", 0),
+                    ("bottom_side", 0),
+                    ("bottom_left_corner", 0),
+                    ("left_side", 0),
+                    ("top_left_corner", 0),
+                    ("top_side", 0),
+                    ("top_right_corner", 0),
+                ),
+            ),
+        ),
+    )
+
+    subprocess.run(
+        [
+            godot,
+            "--headless",
+            "--path",
+            str(project_directory),
+            "--editor",
+            "--quit",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    result = subprocess.run(
+        [
+            godot,
+            "--headless",
+            "--path",
+            str(project_directory),
+            "--script",
+            str(script_path.name),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, (
+        "Godot failed to validate the A2 terrains.\n\n"
+        f"STDOUT:\n{result.stdout}\n\n"
+        f"STDERR:\n{result.stderr}"
+    )

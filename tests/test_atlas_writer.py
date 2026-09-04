@@ -453,3 +453,95 @@ def test_writes_multi_sheet_atlas(tmp_path: Path) -> None:
             255,
             255,
         )
+
+
+def test_writes_a2_table_quarter_halves(tmp_path: Path) -> None:
+    """A2 table kinds draw 12px halves for the row-1/row-5 quarters.
+
+    A 768x576 sheet with injective quarter colours, kind 0 flagged as
+    counter (0x80): the unfolded (kind 0, shape 8) tile must show the
+    row-3 surface quarter in the top half of its bottom-left cell and
+    the top half of the original (2, 1) quarter in the bottom half.
+    """
+
+    from rpgmaker2godot.analysis.detector import TilesetDetector
+    from rpgmaker2godot.conversion.converter import SimpleConverter
+    from rpgmaker2godot.tileset.model import TilesetFlags
+    from rpgmaker2godot.tileset.resolver import TilePropertiesResolver
+
+    source_path = tmp_path / "Inside_A2.png"
+
+    source = Image.new("RGBA", (768, 576))
+
+    for y in range(0, 576, 24):
+        for x in range(0, 768, 24):
+            qx, qy = x // 24, y // 24
+
+            source.paste(
+                ((qx * 37) % 256, (qy * 61) % 256, (qx + qy * 3) % 256, 255),
+                (x, y, x + 24, y + 24),
+            )
+
+    source.save(source_path)
+
+    # Kind 0 is a counter/table autotile (one flag value per kind).
+    flags = [0] * (2816 + 1536)
+
+    for shape in range(48):
+        flags[2816 + shape] = 0x0080
+
+    resolver = TilePropertiesResolver(
+        {
+            "Inside": TilesetFlags(
+                id=1,
+                name="Inside",
+                flags=tuple(flags),
+            ),
+        }
+    )
+
+    analysis = TilesetDetector().analyze(tmp_path)
+    conversion = SimpleConverter(
+        tile_properties_resolver=resolver,
+    ).convert(analysis)
+
+    atlas = AtlasBuilder().build(conversion.tilesets[0])
+
+    placement = next(
+        p
+        for p in atlas.placements
+        if p.tile.sheet_type == SheetType.A2 and p.tile.index == 8
+    )
+
+    # Packed slot 8: x = 8 * 48, y = 0.
+    ax, ay = placement.atlas_x, placement.atlas_y
+    assert (ax, ay) == (8 * 48, 0)
+
+    output_path = tmp_path / "atlas.png"
+
+    AtlasWriter().write(atlas, output_path)
+
+    with Image.open(output_path) as image:
+        # Unaffected quarters keep the plain composition.
+        assert image.getpixel((ax + 12, ay + 12)) == source.getpixel(
+            (48 + 12, 96 + 12)
+        )
+        assert image.getpixel((ax + 36, ay + 12)) == source.getpixel(
+            (24 + 12, 96 + 12)
+        )
+        assert image.getpixel((ax + 36, ay + 36)) == source.getpixel(
+            (24 + 12, 72 + 12)
+        )
+
+        # Bottom-left cell: top half = row-3 surface quarter...
+        assert image.getpixel((ax + 12, ay + 30)) == source.getpixel(
+            (48 + 12, 72 + 12)
+        )
+
+        # ...bottom half = top half of the original (2, 1) quarter.
+        assert image.getpixel((ax + 12, ay + 42)) == source.getpixel(
+            (48 + 12, 24 + 6)
+        )
+
+    image.close()
+    source.close()

@@ -1,11 +1,16 @@
 from rpgmaker2godot.atlas.models import Atlas, AtlasPlacement, AtlasQuarter
 from rpgmaker2godot.model import SheetType, Tileset
+from rpgmaker2godot.tileset.autotile.a2 import a2_shape_quarters
 from rpgmaker2godot.tileset.autotile.a3 import a3_shape_quarters
 from rpgmaker2godot.tileset.autotile.a4 import a4_shape_quarters
+from rpgmaker2godot.tileset.autotile.composer import QUARTER_SIZE
 
 # Per autotile sheet type, the engine-backed function returning the
-# four source quarters of one unfolded (kind, shape) tile.
+# source quarter pieces of one unfolded (kind, shape) tile. Only used
+# as a fallback: converter-produced tiles carry their own quarters
+# (needed for the flags-dependent A2 table rendering).
 _AUTOTILE_SHAPE_QUARTERS = {
+    SheetType.A2: a2_shape_quarters,
     SheetType.A3: a3_shape_quarters,
     SheetType.A4: a4_shape_quarters,
 }
@@ -99,14 +104,15 @@ class AtlasBuilder:
         tile,
         offset_y: int,
     ) -> AtlasPlacement:
-        """Build the placement of one unfolded autotile tile (A3/A4).
+        """Build the placement of one unfolded autotile tile (A2-A4).
 
         The tile's ``ref.index`` encodes ``local_kind * 48 + shape``
-        (matching RPG Maker's A3/A4 Tile ID layout), so the four source
-        quarters can be recovered without extra state. The atlas
+        (matching RPG Maker's A2/A3/A4 Tile ID layout). The atlas
         position comes from the tile's packed ``x``/``y`` (set by the
-        converter); the source piece is whatever the engine's shape
-        table dictates. Only distinct tiles reach this stage: the
+        converter); the source pieces are the tile's stored
+        composition — or, for manually built tiles without one, the
+        engine shape table (which cannot know the flags-dependent A2
+        table rendering). Only distinct tiles reach this stage: the
         converter already dropped the duplicated Wall Side shape IDs
         and every graphically identical variant.
         """
@@ -114,19 +120,26 @@ class AtlasBuilder:
         local_kind = tile.ref.index // 48
         shape = tile.ref.index % 48
 
-        shape_quarters = _AUTOTILE_SHAPE_QUARTERS[tile.ref.sheet_type]
+        if tile.quarters is not None:
+            pieces = tile.quarters
+        else:
+            shape_quarters = _AUTOTILE_SHAPE_QUARTERS[tile.ref.sheet_type]
+
+            pieces = shape_quarters(local_kind, shape)
 
         quarters = tuple(
             AtlasQuarter(
-                source_x=qx,
-                source_y=qy,
-                dest_x=dx,
-                dest_y=dy,
-                # Every autotile quarter is a square 24px crop.
-                width=24,
-                height=24,
+                source_x=piece[0],
+                source_y=piece[1],
+                dest_x=piece[2],
+                dest_y=piece[3],
+                # Every autotile piece is a 24px-wide crop; the
+                # optional fifth element narrows it vertically (the
+                # A2 table halves are 12px tall).
+                width=QUARTER_SIZE,
+                height=piece[4] if len(piece) == 5 else QUARTER_SIZE,
             )
-            for qx, qy, dx, dy in shape_quarters(local_kind, shape)
+            for piece in pieces
         )
 
         return AtlasPlacement(

@@ -16,7 +16,7 @@ prints the same reference inline.
 ### `input` — input directory (positional)
 
 Directory containing the RPG Maker MV/MZ tilesheets to convert: the
-`A3.png`, `A4.png`, `A5.png` and `B.png`–`E.png` sheets, optionally prefixed
+`A2.png`, `A3.png`, `A4.png`, `A5.png` and `B.png`–`E.png` sheets, optionally prefixed
 (e.g. `world_B.png`), typically a project's `img/tilesets/` folder. A
 `Tilesets.json` placed in the same directory is used to resolve the
 collision flags.
@@ -57,7 +57,7 @@ rpgmaker2godot --mode CHARACTER img/characters output
 
 ### `--simple`
 
-Selects the simple conversion mode (`A5`, `B`–`E`, plus the `A3`/`A4`
+Selects the simple conversion mode (`A2`–`E`, plus the `A2`/`A3`/`A4`
 autotile unfolding) — the only mode currently supported, so the flag
 is required for every tileset run (`--mode TILESET`, the default).
 It is not used — and rejected — in `--mode CHARACTER`.
@@ -87,9 +87,9 @@ Keeps the source sheets split: exports one PNG atlas and one `.tres`
 per input sheet (`Inside_A5.png` + `Inside_A5.tres`, `Inside_B.png` +
 `Inside_B.tres`, …) instead of the default **merging** behaviour, which
 splits the sheets sharing a prefix into two stacked outputs: the
-autotile sheets (`A1`–`A4`, `A3` and `A4` handled today) merge into
-`<prefix>_Autotile`, while the normal sheets (`A5`, `B`–`E`) merge into
-`<prefix>`.
+autotile sheets (`A1`–`A4`, `A2`, `A3` and `A4` handled today) merge
+into `<prefix>_Autotile`, while the normal sheets (`A5`, `B`–`E`) merge
+into `<prefix>`.
 
 ```bash
 rpgmaker2godot --simple --no-merge img/tilesets output
@@ -97,7 +97,7 @@ rpgmaker2godot --simple --no-merge img/tilesets output
 
 ### `--tolerance TOLERANCE`
 
-Merges unfolded A3/A4 autotiles whose pixel difference is within `N`
+Merges unfolded A2/A3/A4 autotiles whose pixel difference is within `N`
 pixels, discarding source-image noise. Defaults to `0` (byte-exact
 match) and must be `>= 0`.
 
@@ -107,7 +107,7 @@ rpgmaker2godot --simple --tolerance 8 img/tilesets output
 
 ### `--no-terrains`
 
-Skips the Godot terrain generation for the unfolded A3/A4 autotiles
+Skips the Godot terrain generation for the unfolded A2/A3/A4 autotiles
 (terrains power the automatic connection tool in the Godot editor);
 the generated `.tres` then contains no `terrain_set_*` metadata.
 
@@ -187,7 +187,7 @@ src/rpgmaker2godot/
 ├── cli.py                          # CLI entry point (main) — reads Tilesets.json to resolve collisions
 ├── analysis/                       # PNG sheet detection (TilesetDetector, CharacterDetector)
 │   ├── detector.py                 # TilesetDetector: scans the input directory for RPG Maker sheets
-│   │                               #   (A3/A4/A5/B/C/D/E.png), validates their dimensions against the tile
+│   │                               #   (A2/A3/A4/A5/B/C/D/E.png), validates their dimensions against the tile
 │   │                               #   size and produces an AnalysisResult
 │   ├── character_detector.py       # CharacterDetector: scans the input directory for character
 │   │                               #   spritesheets (any *.png), validates the 3-column × 9-row layout
@@ -210,30 +210,35 @@ src/rpgmaker2godot/
 │   ├── tile_id.py                  # TileRef → global Tile ID conversion
 │   └── autotile/                   # RPG Maker autotile composition
 │       ├── shapes.py               # FLOOR_AUTOTILE_TABLE (48) + WALL_AUTOTILE_TABLE (16), verbatim
-│       ├── composer.py             # compose 48x48 tiles from 24x24 quarters (+ unfold helpers)
+│       ├── composer.py             # compose 48x48 tiles from quarter pieces (+ unfold helpers)
+│       ├── a2.py                   # A2 sheet geometry + the 32 autotiles' source regions and
+│       │                           #   shape pieces (incl. the 0x80 "table" rendering);
+│       │                           #   all 1536 compositions are distinct, then pixel-level
+│       │                           #   dedup of graphically identical tiles
 │       ├── a3.py                   # A3 sheet geometry + the 32 autotiles' source regions and shape
 │       │                           #   quarters; unique compositions (1536 raw → 512) then pixel-level
 │       │                           #   dedup of graphically identical tiles
 │       ├── a4.py                   # A4 sheet geometry + the 48 autotiles' source regions and
 │       │                           #   shape quarters; unique compositions (2304 raw → 1536) then
 │       │                           #   pixel-level dedup of graphically identical tiles
-│       ├── peering.py              # shape → Godot peering-bit correspondence (A4 Wall Tops +
-│       │                           #   every A3/A4 wall-table shape)
+│       ├── peering.py              # shape → Godot peering-bit correspondence (A2 Grounds and
+│       │                           #   A4 Wall Tops on the floor table, A3/A4 wall-table shapes)
 │       └── unique.py               # shared graphically-distinct selection engine (byte-exact +
-│                                   #   optional pixel-tolerance dedup) used by a3/a4 unfolders
+│                                   #   optional pixel-tolerance dedup) used by a2/a3/a4 unfolders
 ├── model/                          # Shared internal model (immutable)
-│   ├── enums.py                    # SheetType enum + its canonical stacking order (A3, A4, A5, B, C, D, E)
+│   ├── enums.py                    # SheetType enum + its canonical stacking order (A2, A3, A4, A5, B, C, D, E)
 │   ├── sheet.py                    # Sheet — one source tilesheet together with its extracted tiles
 │   ├── tile.py                     # Tile + TileRef — one tile with its geometry, optional RPG Maker
-│   │                               #   properties and derived collision
+│   │                               #   properties, derived collision and unfolded autotile quarters
 │   ├── tileset.py                  # Tileset + ConversionResult — group of sheets assembled together
 │   └── tile_collision.py           # TileCollision — directional passage blocking, free of any Godot concept
 ├── atlas/                          # PNG atlas building and writing
 │   ├── builder.py                  # AtlasBuilder: stacks a tileset's sheets into a single atlas
-│   │                               #   geometry; composes the unfolded A3/A4 tiles (4 quarters each)
+│   │                               #   geometry; composes the unfolded A2/A3/A4 tiles from their
+│   │                               #   stored quarter pieces (engine shape tables as fallback)
 │   ├── models.py                   # Atlas + AtlasPlacement + AtlasQuarter — each tile's coordinates
-│   │                               #   (AtlasQuarter = one 24x24 piece of a composed A3/A4 tile)
-│   └── writer.py                   # AtlasWriter: renders an internal Atlas to a PNG image, A3/A4 tiles
+│   │                               #   (AtlasQuarter = one piece of a composed A2/A3/A4 tile)
+│   └── writer.py                   # AtlasWriter: renders an internal Atlas to a PNG image, A2/A3/A4 tiles
 │                                   #   composited quarter by quarter onto a transparent canvas
 ├── image/                          # Image extraction (PIL/Pillow)
 │   ├── extractor.py                # TileExtractor: crops a single Tile out of an ImageSource
@@ -351,7 +356,7 @@ It also carries Windows version metadata (description, file & product version in
 
 Reference for the sheet format handled by the pipeline, as defined by RPG Maker MV/MZ and its core script (`rmmz_core.js`).
 
-**Objective.** A tileset is not a single image: `Tilesets.json` references up to nine PNG *sheets* (`A1`–`A5`, `B`–`E`) which the engine draws stacked on top of each other (A4 and A5 underneath, then the overlay layers `B` → `C` → `D` → `E`). Everything is laid out on a **48×48 px grid**: one tile is 48×48 px, and autotiles are composed from four **24×24 px quarters**. Sheets come in two families:
+**Objective.** A tileset is not a single image: `Tilesets.json` references up to nine PNG *sheets* (`A1`–`A5`, `B`–`E`) which the engine draws stacked on top of each other (A2 ground, A3/A4 walls and A5 underneath, then the overlay layers `B` → `C` → `D` → `E`). Everything is laid out on a **48×48 px grid**: one tile is 48×48 px, and autotiles are composed from four **24×24 px quarters**. Sheets come in two families:
 
 * **normal sheets** (`A5`, `B`–`E`) — every cell is an independent, ready-to-draw tile;
 * **autotile sheets** (`A1`–`A4`) — cells are raw material: for every map cell the engine picks a *shape* from hardcoded tables (`FLOOR_AUTOTILE_TABLE` = 48 shapes, `WALL_AUTOTILE_TABLE` = 16, `WATERFALL_AUTOTILE_TABLE` = 4) and assembles the final 48×48 tile from four 24×24 quarters. This tool performs that composition at conversion time (*unfolding*), so Godot only sees plain static tiles.
@@ -361,13 +366,46 @@ Reference for the sheet format handled by the pipeline, as defined by RPG Maker 
 | Sheet | Pixels | Content | Engine IDs | Purpose |
 | ----- | ------ | ------- | ---------- | ------- |
 | A1 | 768×576 | 16 autotiles | 768 | animated water and waterfalls |
-| A2 | 768×576 | 32 autotiles | 1536 | ground autotiles (grass, paths…) |
+| A2 | 768×576 | 32 autotiles → 1536 compositions → only graphically distinct tiles kept | 1536 | ground autotiles (grass, dirt, sand, snow, paths…) |
 | A3 | 768×384 | 32 autotiles → 512 compositions → only graphically distinct tiles kept | 1536 | building autotiles (roofs, walls) |
 | A4 | 768×720 | 48 autotiles → 1536 compositions → only graphically distinct tiles kept (1390 for the stock Inside_A4) | 1536 | interior walls & ceilings (houses, caves, castles, dungeons) |
 | A5 | 384×768 | 128 normal tiles (8×16) | 512 (128 used) | plain ground without autotile |
 | B–E | 768×768 each | 256 normal tiles (16×16) each | 256 each | ordinary tiles, four overlay layers (B lowest → E highest) |
 
 Global tile IDs are fixed by the engine — `B=0, C=256, D=512, E=768, A5=1536, A1=2048, A2=2816, A3=4352, A4=5888`, `TILE_ID_MAX=8192` — which is how the `Tilesets.json` flags array is matched to tiles.
+
+**A2 layout in detail** (fully unfolded by the converter):
+
+```text
+768×576 px = 8 columns of 96 px × 4 rows of 144 px; every 96×144 source is
+one autotile:
+
+  y =   0..144    Ground ×8   (96×144, FLOOR_AUTOTILE_TABLE, 48 shapes)
+  y = 144..288    Ground ×8
+  y = 288..432    Ground ×8
+  y = 432..576    Ground ×8
+```
+
+That gives 32 Ground autotiles (`TILE_ID_A2 = 2816`; the engine numbers
+them kinds 16–47, hence its `by = (ty - 2) * 3` decode). Every A2
+autotile — grass, dirt, sand, snow, path… — composes from the shared
+`FLOOR_AUTOTILE_TABLE` (48 shapes): each kind reserves exactly 48 shape
+IDs and all of them are distinct compositions, so the 1536 raw variants
+are **1536 unique ready-to-place 48×48 tiles** (32 × 48), and the
+pixel-level deduplication then keeps only the graphically distinct ones.
+Two engine specifics:
+
+* the floor table agrees on *sides and corners*, so the Godot terrains
+  generated for A2 use the `MATCH_CORNERS_AND_SIDES` mode — one
+  `Ground N` terrain set per material, matching the blob behaviour of
+  the automatic connection tool;
+* kinds flagged *counter* (`0x80` in `Tilesets.json`,
+  `Tilemap._isTableTile`) render with the engine's **table**
+  composition: source quarters taken from quarter rows 1 and 5 are
+  replaced by the matching row-3 quarter whose bottom half is redrawn
+  from the top half of the original quarter (mirrored horizontally for
+  row 1). The converter reproduces that composition — such tiles are
+  assembled from full 24×24 pieces and 12 px-tall half pieces.
 
 **A3 layout in detail** (fully unfolded by the converter):
 
@@ -409,7 +447,7 @@ Wall Top row over one Wall Side row:
 
 That gives 24 Wall Tops + 24 Wall Sides = 48 autotiles (`TILE_ID_A4 = 5888`; `kind % 16 < 8` ⇒ Wall Top). Each kind reserves 48 shape IDs, but Wall Sides cycle through their 16 shapes only: the 2304 raw variants contain duplicates, and the converter unfolds the **1536 unique ready-to-place 48×48 tiles** (24 Wall Tops × 48 + 24 Wall Sides × 16), dropping the redundant ones.
 
-**What this tool converts:** `*_A3.png` (unfolded), `*_A4.png` (unfolded), `*_A5.png` and `*_B/C/D/E.png`. Sheets A1–A2 are not converted yet.
+**What this tool converts:** `*_A2.png` (unfolded), `*_A3.png` (unfolded), `*_A4.png` (unfolded), `*_A5.png` and `*_B/C/D/E.png`. Sheet A1 is not converted yet.
 
 ### Conversion pipeline
 
@@ -427,16 +465,16 @@ flowchart LR
     G --> H["resource_writer"]
     H --> I[".tres"]
 
-    A -.->|"directory scan<br/>A3/A4/A5/B/C/D/E.png regex"| A
-    B -.->|"Tile creation — TileRef + coordinates<br/>A3: 1536 raw → 512 unique, A4: 2304 raw → 1536<br/>unique unfolded tiles"| B
-    E -.->|"A3/A4 tiles composed from four 24×24 quarters<br/>(AtlasQuarter, transparent canvas)"| E
+    A -.->|"directory scan<br/>A2/A3/A4/A5/B/C/D/E.png regex"| A
+    B -.->|"Tile creation — TileRef + coordinates<br/>A2: 1536 raw → 1536 unique, A3: 1536 raw → 512,<br/>A4: 2304 raw → 1536 unique unfolded tiles"| B
+    E -.->|"A2/A3/A4 tiles composed from quarter pieces<br/>(AtlasQuarter, transparent canvas)"| E
 ```
 
 The pipeline is split in three phases, orchestrated by `rpgmaker2godot.cli.main()`.
 
 #### 1. Analysis — `analysis/`
 
-`TilesetDetector.analyze()` scans the input directory for supported RPG Maker sheets (`A3.png`, `A4.png`, `A5.png`, `B.png`, `C.png`, `D.png`, `E.png`, matched case-insensitively and optionally prefixed, e.g. `world_B.png`). For each sheet it validates that both dimensions are divisible by the tile size (48 px by default), then produces an `analysis.SheetInfo` per sheet and wraps them in an `analysis.AnalysisResult`:
+`TilesetDetector.analyze()` scans the input directory for supported RPG Maker sheets (`A2.png`, `A3.png`, `A4.png`, `A5.png`, `B.png`, `C.png`, `D.png`, `E.png`, matched case-insensitively and optionally prefixed, e.g. `world_B.png`). For each sheet it validates that both dimensions are divisible by the tile size (48 px by default), then produces an `analysis.SheetInfo` per sheet and wraps them in an `analysis.AnalysisResult`:
 
 * detects the dimensions, column/row count and tile size of every sheet;
 * collects non-fatal issues as warnings (e.g. an unsupported/invalid PNG) without aborting the whole scan;
@@ -455,7 +493,7 @@ sequenceDiagram
     loop For each file
         D->>FS: iterdir()
         FS-->>D: path
-        D-->>D: match A3/A4/A5/B/C/D/E.png (regex, case-insensitive)
+        D-->>D: match A2/A3/A4/A5/B/C/D/E.png (regex, case-insensitive)
         alt no match
             Note over D: file ignored
         else match
@@ -475,16 +513,17 @@ sequenceDiagram
 
 #### 2. Conversion — `conversion/`, `tileset/`
 
-`SimpleConverter.convert()` turns the `AnalysisResult` into the internal, immutable `ConversionResult` model. Sheets sharing the same filename prefix are grouped and ordered by their canonical stacking order (A3, A4, A5, B, C, D, E).
+`SimpleConverter.convert()` turns the `AnalysisResult` into the internal, immutable `ConversionResult` model. Sheets sharing the same filename prefix are grouped and ordered by their canonical stacking order (A2, A3, A4, A5, B, C, D, E).
 
-This prefix grouping is the default **merging** behaviour, and it splits each prefix into two output tilesets: the **autotile sheets** (`A1`–`A4` — `A3` and `A4` are handled today) stack into a `<prefix>_Autotile` tileset (e.g. `Inside_Autotile`), while the **normal sheets** (`A5`, `B`–`E`) stack into a `<prefix>` tileset (e.g. `Inside`), exported after the autotile one. Each output tileset becomes its own atlas/`.tres`; the `TileRef`s keep the plain prefix as their RPG tileset name so collision lookup against `Tilesets.json` is unaffected. When `A1`–`A2` unfolding lands, those sheets simply join the `<prefix>_Autotile` group. Passing `--no-merge` keeps the source sheet split instead — each detected sheet becomes its own `Tileset`, named after the sheet file itself (so `world_B.png` yields a `world_B` tileset), and the export step then emits one `<sheet>.png` + `<sheet>.tres` per input sheet.
+This prefix grouping is the default **merging** behaviour, and it splits each prefix into two output tilesets: the **autotile sheets** (`A1`–`A4` — `A2`, `A3` and `A4` are handled today) stack into a `<prefix>_Autotile` tileset (e.g. `Inside_Autotile`), while the **normal sheets** (`A5`, `B`–`E`) stack into a `<prefix>` tileset (e.g. `Inside`), exported after the autotile one. Each output tileset becomes its own atlas/`.tres`; the `TileRef`s keep the plain prefix as their RPG tileset name so collision lookup against `Tilesets.json` is unaffected. When `A1` unfolding lands, that sheet simply joins the `<prefix>_Autotile` group. Passing `--no-merge` keeps the source sheet split instead — each detected sheet becomes its own `Tileset`, named after the sheet file itself (so `world_B.png` yields a `world_B` tileset), and the export step then emits one `<sheet>.png` + `<sheet>.tres` per input sheet.
 
-For every sheet, one `Tile` is created per cell — except A3 and A4, which are *unfolded*:
+For every sheet, one `Tile` is created per cell — except A2, A3 and A4, which are *unfolded*:
 
+* **A2 unfolding** — the sheet must have the canonical 768×576 dimensions, then the converter emits one 48×48 tile per **graphically distinct** (autotile kind, shape) composition: all 32 A2 autotiles compose from the full floor table (48 shapes), whose 48 reserved shape IDs are all distinct (1536 raw variants → 1536 compositions), and a pixel-level deduplication then keeps only the tiles that truly render differently. Each kept tile is encoded as `TileRef.index = kind × 48 + shape` (first occurrence) and laid out on the packed 16-column grid the atlas step consumes. Kinds flagged *counter* (`0x80`) compose the engine's **table** variant (see the A2 layout section above). `--tolerance N` additionally merges tiles differing by at most N pixels to discard source-image noise (default 0 = byte-exact match);
 * **A3 unfolding** — the sheet must have the canonical 768×384 dimensions, then the converter emits one 48×48 tile per **graphically distinct** (autotile kind, shape) composition: all 32 A3 autotiles — roofs and walls — compose from the wall table, which only holds 16 of the 48 reserved shape IDs (1536 raw variants → 512 compositions), and a pixel-level deduplication then keeps only the tiles that truly render differently. Each kept tile is encoded as `TileRef.index = kind × 48 + shape` (first occurrence) and laid out on the packed 16-column grid the atlas step consumes. `--tolerance N` additionally merges tiles differing by at most N pixels to discard source-image noise (default 0 = byte-exact match);
 * **A4 unfolding** — the sheet must have the canonical 768×720 dimensions, then the converter emits one 48×48 tile per **graphically distinct** (autotile kind, shape) composition: the Wall Side table only holds 16 of the 48 reserved shape IDs (2304 raw variants → 1536 compositions), and a pixel-level deduplication then keeps only the tiles that truly render differently — 1390 for the stock `Inside_A4.png`. Each kept tile is encoded as `TileRef.index = kind × 48 + shape` (first occurrence) and laid out on the packed 16-column grid the atlas step consumes. `--tolerance N` additionally merges tiles differing by at most N pixels to discard source-image noise (default 0 = byte-exact match);
 * a `TileRef` (tileset name, sheet type, zero-based column-major index) plus its coordinates;
-* **collision resolution** — when a `TilePropertiesResolver` is configured (i.e. a `Tilesets.json` is present), the tile's `TileRef` is mapped to the RPG Maker global Tile ID via `tile_to_tile_id()` (`B=0, C=256, D=512, E=768, A5=1536, A3=4352, A4=5888`, then row/column offset; for A3/A4 the offset is `kind × 48 + shape`), the flags are decoded into `TileProperties`, and `tile_properties_to_collision()` converts the directional passage permissions into a Godot-agnostic `TileCollision`. Without a resolver the tile is kept collisionless, preserving the original behaviour.
+* **collision resolution** — when a `TilePropertiesResolver` is configured (i.e. a `Tilesets.json` is present), the tile's `TileRef` is mapped to the RPG Maker global Tile ID via `tile_to_tile_id()` (`B=0, C=256, D=512, E=768, A5=1536, A2=2816, A3=4352, A4=5888`, then row/column offset; for A2/A3/A4 the offset is `kind × 48 + shape`), the flags are decoded into `TileProperties`, and `tile_properties_to_collision()` converts the directional passage permissions into a Godot-agnostic `TileCollision`. Without a resolver the tile is kept collisionless, preserving the original behaviour.
 
 ```mermaid
 sequenceDiagram
@@ -494,10 +533,10 @@ sequenceDiagram
     participant R as TilePropertiesResolver
 
     CLI->>C: convert(analysis)
-    C-->>C: group sheets by prefix, split autotile (A3, A4) vs<br/>normal (A5, B–E) → Tileset(s) ordered by SheetType.order
+    C-->>C: group sheets by prefix, split autotile (A2, A3, A4) vs<br/>normal (A5, B–E) → Tileset(s) ordered by SheetType.order
     loop For each sheet
-        alt A3/A4 sheet (autotile unfolding)
-            Note over C: A3: 1536 raw → 512, A4: 2304 raw → 1536<br/>graphically distinct tiles only<br/>TileRef.index = kind × 48 + shape (first occurrence)
+        alt A2/A3/A4 sheet (autotile unfolding)
+            Note over C: A2: 1536 raw → 1536, A3: 1536 raw → 512,<br/>A4: 2304 raw → 1536<br/>graphically distinct tiles only<br/>TileRef.index = kind × 48 + shape (first occurrence)
         else other sheet
             Note over C: one Tile per cell (column, row, index)
         end
@@ -520,8 +559,8 @@ sequenceDiagram
 
 `SimpleExporter.export()` writes, for each `Tileset`, a PNG atlas and a Godot `.tres` resource into the output directory:
 
-1. `AtlasBuilder.build()` stacks the tileset's sheets into a single atlas geometry (`Atlas`), recording each tile's source and atlas coordinates. A3/A4 tiles are *composed*: their placement holds four `AtlasQuarter` pieces (24×24 each) selected by the engine shape tables, not a single rectangular crop.
-2. `AtlasWriter.write()` renders that atlas to `<name>.png` — normal tiles are cropped from their source sheet, while every A3/A4 tile is composited from its four quarters onto a transparent 48×48 canvas (`image/`'s `TileExtractor`/`ImageSource` handle the per-tile image access).
+1. `AtlasBuilder.build()` stacks the tileset's sheets into a single atlas geometry (`Atlas`), recording each tile's source and atlas coordinates. A2/A3/A4 tiles are *composed*: their placement holds `AtlasQuarter` pieces (24×24, or 12 px-tall halves for the A2 table rendering) selected by the engine shape tables, not a single rectangular crop.
+2. `AtlasWriter.write()` renders that atlas to `<name>.png` — normal tiles are cropped from their source sheet, while every A2/A3/A4 tile is composited from its quarter pieces onto a transparent 48×48 canvas (`image/`'s `TileExtractor`/`ImageSource` handle the per-tile image access).
 3. `GodotAtlasMapper.map()` translates the atlas into Godot's atlas model.
 4. `GodotTileSetBuilder.build()` produces the `GodotTileSet` (tile shapes, source regions, collisions).
 5. `GodotResourceWriter.write()` serializes it to the `<name>.tres` resource (Godot text-format), referencing the atlas texture.
@@ -543,10 +582,10 @@ sequenceDiagram
     CLI->>E: export(conversion, output_directory)
     loop For each Tileset
         E->>AB: build(tileset)
-        Note over AB: A3/A4 tiles carry four AtlasQuarter<br/>pieces (engine shape tables)
+        Note over AB: A2/A3/A4 tiles carry AtlasQuarter<br/>pieces (engine shape tables)
         AB-->>E: Atlas (geometry + placements)
         E->>AW: write(atlas, <name>.png)
-        Note over AW: A3/A4 tiles composited from their<br/>quarters onto a transparent canvas
+        Note over AW: A2/A3/A4 tiles composited from their<br/>quarters onto a transparent canvas
         AW->>FS: <name>.png
         E->>GM: map(atlas)
         GM-->>GM: tile_collision_to_godot() (semantic → geometry)

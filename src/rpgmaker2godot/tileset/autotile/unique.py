@@ -1,21 +1,19 @@
 """Graphically-distinct selection shared by the autotile unfolders.
 
-``a3_unique_tiles`` and ``a4_unique_tiles`` walk their sheet's quarter
-compositions in engine ID order, compose every candidate into its final
-48x48 image and keep only the first occurrence of each distinct pixel
-content. The comparison machinery (byte-exact set, optional
-pixel-tolerance pre-filter) lives here, parameterised by the candidate
-stream, so the A3 and A4 unfolders stay thin wrappers.
+``a2_unique_tiles``, ``a3_unique_tiles`` and ``a4_unique_tiles`` walk
+their sheet's quarter compositions in engine ID order, compose every
+candidate into its final 48x48 image and keep only the first occurrence
+of each distinct pixel content. The comparison machinery (byte-exact
+set, optional pixel-tolerance pre-filter) lives here, parameterised by
+the candidate stream, so the A2, A3 and A4 unfolders stay thin
+wrappers.
 """
 
 from collections.abc import Callable, Hashable, Iterator
 
 from PIL import Image, ImageChops
 
-from .composer import compose_quarters
-
-# One composition: four (qx, qy, dx, dy) 24x24 quarter pieces.
-Quarters = tuple[tuple[int, int, int, int], ...]
+from .composer import Quarters, compose_quarters
 
 # Each differing pixel changes a tile's total byte sum by at most
 # 4 channels x 255. This bounds the safe pre-filter used by the

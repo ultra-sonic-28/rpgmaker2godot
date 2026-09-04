@@ -235,3 +235,129 @@ def test_a3_leaves_unused_material_tiles_without_terrain(tmp_path) -> None:
     unused = tile_by_kind_shape(godot_tileset, 1, 0)
 
     assert unused.ref not in plan.tile_terrains
+
+
+def write_single_material_a2_sheet(path: Path) -> None:
+    """A2 sheet with one opaque ground material (column 0, row 0).
+
+    Kind 0's 96x144 source region is drawn with distinct quarter
+    colours; every other source region stays transparent.
+    """
+
+    sheet = Image.new("RGBA", (768, 576), (0, 0, 0, 0))
+
+    for y in range(0, 144, 24):
+        for x in range(0, 96, 24):
+            qx, qy = x // 24, y // 24
+
+            sheet.paste(
+                ((qx * 37) % 256, (qy * 61) % 256, 30, 255),
+                (x, y, x + 24, y + 24),
+            )
+
+    sheet.save(path)
+    sheet.close()
+
+
+def build_a2_pipeline(tmp_path: Path):
+    """Run detection → conversion → atlas → Godot tileset for A2."""
+
+    source = tmp_path / "Inside_A2.png"
+
+    write_single_material_a2_sheet(source)
+
+    analysis = TilesetDetector().analyze(tmp_path)
+    conversion = SimpleConverter().convert(analysis)
+
+    atlas = AtlasBuilder().build(conversion.tilesets[0])
+    mapping = GodotAtlasMapper().map(atlas)
+    godot_tileset = GodotTileSetBuilder().build(mapping, source)
+
+    return conversion.tilesets[0], godot_tileset
+
+
+def test_a2_builds_one_ground_terrain_set(tmp_path) -> None:
+    tileset, godot_tileset = build_a2_pipeline(tmp_path)
+
+    plan = GodotTerrainBuilder().build(tileset, godot_tileset)
+
+    assert len(plan.terrain_sets) == 1
+
+    ground_set = plan.terrain_sets[0]
+
+    # A2 grounds compose from the floor table: blob matching.
+    assert ground_set.mode == 0  # MATCH_CORNERS_AND_SIDES
+    assert ground_set.terrains[0].name == "Ground 1"
+
+
+def test_a2_assigns_blob_peering_bits(tmp_path) -> None:
+    tileset, godot_tileset = build_a2_pipeline(tmp_path)
+
+    plan = GodotTerrainBuilder().build(tileset, godot_tileset)
+
+    interior = tile_by_kind_shape(godot_tileset, 0, 0)
+
+    terrain = plan.tile_terrains[interior.ref]
+
+    assert terrain.set_index == 0
+    assert terrain.terrain_index == 0
+
+    # Fully surrounded floor-table shape: every side and corner
+    # connects.
+    assert len(terrain.peering_bits) == 8
+
+    # Shape 47 (isolated): no peering bit at all.
+    isolated = tile_by_kind_shape(godot_tileset, 0, 47)
+
+    isolated_terrain = plan.tile_terrains[isolated.ref]
+
+    assert isolated_terrain.set_index == 0
+    assert isolated_terrain.peering_bits == ()
+
+
+def test_a2_leaves_unused_material_tiles_without_terrain(tmp_path) -> None:
+    tileset, godot_tileset = build_a2_pipeline(tmp_path)
+
+    plan = GodotTerrainBuilder().build(tileset, godot_tileset)
+
+    # Kind 1's region is transparent: its tile has no terrain.
+    unused = tile_by_kind_shape(godot_tileset, 1, 0)
+
+    assert unused.ref not in plan.tile_terrains
+
+
+def test_a2_ground_materials_precede_a3_and_a4_materials(tmp_path) -> None:
+    """Material numbering runs A2 grounds → A3 buildings → A4 walls."""
+
+    a2_path = tmp_path / "Inside_A2.png"
+    a3_path = tmp_path / "Inside_A3.png"
+    a4_path = tmp_path / "Inside_A4.png"
+
+    write_single_material_a2_sheet(a2_path)
+    write_single_material_a3_sheet(a3_path)
+    write_single_material_a4_sheet(a4_path)
+
+    analysis = TilesetDetector().analyze(tmp_path)
+    conversion = SimpleConverter().convert(analysis)
+
+    autotile_tileset = conversion.tilesets[0]
+
+    atlas = AtlasBuilder().build(autotile_tileset)
+    mapping = GodotAtlasMapper().map(atlas)
+    godot_tileset = GodotTileSetBuilder().build(mapping, a2_path)
+
+    plan = GodotTerrainBuilder().build(autotile_tileset, godot_tileset)
+
+    names = [
+        terrain.name
+        for terrain_set in plan.terrain_sets
+        for terrain in terrain_set.terrains
+    ]
+
+    assert names == [
+        "Ground 1",
+        "Roof 2",
+        "Wall 2",
+        "Wall top 3",
+        "Wall side 3",
+    ]

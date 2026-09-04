@@ -1,8 +1,11 @@
-"""Build Godot terrain sets from the unfolded A3/A4 autotiles.
+"""Build Godot terrain sets from the unfolded A2/A3/A4 autotiles.
 
-One terrain set is generated per material part, so painting a wall in
-the Godot editor reproduces RPG Maker's ``_addAutotile`` behaviour:
+One terrain set is generated per material part, so painting a ground or
+a wall in the Godot editor reproduces RPG Maker's ``_addAutotile``
+behaviour:
 
+* ``Ground x`` (A2 grounds) — mode ``MATCH_CORNERS_AND_SIDES`` (the
+  floor-table blob matching);
 * ``Roof x`` / ``Wall x`` (A3 buildings) — mode ``MATCH_SIDES`` (the
   wall-table side matching, shared by every A3 autotile);
 * ``Wall top x`` (A4) — mode ``MATCH_CORNERS_AND_SIDES`` (the
@@ -13,9 +16,10 @@ the Godot editor reproduces RPG Maker's ``_addAutotile`` behaviour:
 A terrain set carries a single matching mode, which is why the top and
 the side of one A4 wall material live in two sets. The A3 roof and wall
 rows always use the side matching. Materials are numbered continuously
-across the tileset's sheets (A3 buildings first, then A4 walls,
-following the atlas stacking order) and detected automatically from
-the source sheets' slots whose region is not fully transparent.
+across the tileset's sheets (A2 grounds first, then A3 buildings, then
+A4 walls, following the atlas stacking order) and detected
+automatically from the source sheets' slots whose region is not fully
+transparent.
 """
 
 import colorsys
@@ -32,6 +36,11 @@ from rpgmaker2godot.godot.model import (
 )
 from rpgmaker2godot.model import SheetType
 from rpgmaker2godot.model.tileset import Tileset
+from rpgmaker2godot.tileset.autotile.a2 import (
+    A2_AUTOTILE_COUNT,
+    A2_SHAPES_PER_AUTOTILE,
+    a2_source_region,
+)
 from rpgmaker2godot.tileset.autotile.a3 import (
     A3_AUTOTILE_COUNT,
     A3_SHAPES_PER_AUTOTILE,
@@ -61,21 +70,26 @@ WALL_SIDE_REGION_HEIGHT = 96
 A3_REGION_WIDTH = 96
 A3_REGION_HEIGHT = 96
 
+# A2 source regions are one 96x144 slot per autotile.
+A2_REGION_WIDTH = 96
+A2_REGION_HEIGHT = 144
+
 
 @dataclass(frozen=True)
 class TerrainResolution:
     """Result of the terrain *resolution* phase.
 
-    The A3/A4 source images have been scanned for drawn autotiles and
-    the matching terrain sets (their modes, names and material colours)
-    are known. Attaching the terrains to the individual Godot atlas
-    tiles is not part of this result: it only needs the Godot tileset
-    and is deferred to the *assignment* phase, performed during export.
+    The A2/A3/A4 source images have been scanned for drawn autotiles
+    and the matching terrain sets (their modes, names and material
+    colours) are known. Attaching the terrains to the individual Godot
+    atlas tiles is not part of this result: it only needs the Godot
+    tileset and is deferred to the *assignment* phase, performed during
+    export.
 
     ``kind_assignment`` maps each autotile sheet type to its
     ``kind -> (set_index, is_floor)`` entries: ``is_floor`` selects the
-    corners-and-sides (blob) matching of the A4 Wall Tops, while every
-    A3 part and A4 Wall Side uses the side matching.
+    corners-and-sides (blob) matching of the A2 grounds and the A4 Wall
+    Tops, while every A3 part and A4 Wall Side uses the side matching.
     """
 
     terrain_sets: tuple[GodotTerrainSet, ...]
@@ -89,12 +103,18 @@ class GodotTerrainBuilder:
         self,
         tileset: Tileset,
     ) -> TerrainResolution:
-        """Detect the drawn A3/A4 autotiles and define their terrain sets.
+        """Detect the drawn A2/A3/A4 autotiles and define their terrain sets.
 
-        This is the resolution/definition phase: it only reads the A3/A4
-        source images, so it can run before the Godot tileset is built
-        and be reported as its own CLI step.
+        This is the resolution/definition phase: it only reads the
+        A2/A3/A4 source images, so it can run before the Godot tileset
+        is built and be reported as its own CLI step.
         """
+
+        a2_sheets = [
+            sheet
+            for sheet in tileset.sheets
+            if sheet.sheet_type == SheetType.A2
+        ]
 
         a3_sheets = [
             sheet
@@ -108,8 +128,14 @@ class GodotTerrainBuilder:
             if sheet.sheet_type == SheetType.A4
         ]
 
-        if not a3_sheets and not a4_sheets:
+        if not a2_sheets and not a3_sheets and not a4_sheets:
             return TerrainResolution((), {})
+
+        if len(a2_sheets) > 1:
+            raise ValueError(
+                "Terrain generation supports exactly one A2 sheet "
+                "per tileset."
+            )
 
         if len(a3_sheets) > 1:
             raise ValueError(
@@ -122,6 +148,12 @@ class GodotTerrainBuilder:
                 "Terrain generation supports exactly one A4 sheet "
                 "per tileset."
             )
+
+        used_ground_kinds = (
+            self._detect_used_a2_kinds(a2_sheets[0].source_path)
+            if a2_sheets
+            else set()
+        )
 
         used_building_kinds = (
             self._detect_used_a3_kinds(a3_sheets[0].source_path)
@@ -136,6 +168,7 @@ class GodotTerrainBuilder:
         )
 
         terrain_sets, kind_assignment = self._build_sets(
+            used_ground_kinds,
             used_building_kinds,
             used_wall_kinds,
         )
@@ -150,7 +183,7 @@ class GodotTerrainBuilder:
         godot_tileset: GodotTileSet,
         resolution: TerrainResolution,
     ) -> GodotTerrainPlan:
-        """Attach the resolved terrains to the Godot tileset's A3/A4 cells."""
+        """Attach the resolved terrains to the Godot tileset's A2/A3/A4 cells."""
 
         tile_terrains = self._assign_tiles(
             godot_tileset,
@@ -177,6 +210,36 @@ class GodotTerrainBuilder:
             godot_tileset,
             self.resolve(tileset),
         )
+
+    def _detect_used_a2_kinds(self, source_path) -> set[int]:
+        """Return the A2 kinds whose source region is drawn."""
+
+        used: set[int] = set()
+
+        with Image.open(source_path) as raw:
+            source = raw.convert("RGBA")
+
+        try:
+            for kind in range(A2_AUTOTILE_COUNT):
+                source_x, source_y = a2_source_region(kind)
+
+                region = source.crop(
+                    (
+                        source_x,
+                        source_y,
+                        source_x + A2_REGION_WIDTH,
+                        source_y + A2_REGION_HEIGHT,
+                    )
+                )
+
+                if region.getchannel("A").getbbox() is not None:
+                    used.add(kind)
+
+                region.close()
+        finally:
+            source.close()
+
+        return used
 
     def _detect_used_a3_kinds(self, source_path) -> set[int]:
         """Return the A3 kinds whose source region is drawn."""
@@ -246,6 +309,7 @@ class GodotTerrainBuilder:
 
     @staticmethod
     def _build_sets(
+        used_ground_kinds: set[int],
         used_building_kinds: set[int],
         used_wall_kinds: set[int],
     ) -> tuple[
@@ -254,10 +318,11 @@ class GodotTerrainBuilder:
     ]:
         """Create one terrain set per used material part.
 
-        The A3 building materials come first — they are stacked under
-        the A4 walls in the merged atlas — then the A4 wall materials.
-        The ``material`` counter (and therefore the terrain colours) is
-        shared by both families.
+        The A2 ground materials come first — they are stacked under the
+        A3 buildings and the A4 walls in the merged atlas — then the A3
+        building materials and the A4 wall materials. The ``material``
+        counter (and therefore the terrain colours) is shared by the
+        three families.
         """
 
         terrain_sets: list[GodotTerrainSet] = []
@@ -265,11 +330,37 @@ class GodotTerrainBuilder:
             SheetType,
             dict[int, tuple[int, bool]],
         ] = {
+            SheetType.A2: {},
             SheetType.A3: {},
             SheetType.A4: {},
         }
 
         material = 0
+
+        # A2 grounds: one blob (floor-table) terrain set per kind.
+        for kind in range(A2_AUTOTILE_COUNT):
+            if kind not in used_ground_kinds:
+                continue
+
+            material += 1
+            color = GodotTerrainBuilder._material_color(material)
+
+            kind_assignment[SheetType.A2][kind] = (
+                len(terrain_sets),
+                True,
+            )
+
+            terrain_sets.append(
+                GodotTerrainSet(
+                    mode=TERRAIN_MATCH_CORNERS_AND_SIDES,
+                    terrains=(
+                        GodotTerrain(
+                            name=f"Ground {material}",
+                            color=color,
+                        ),
+                    ),
+                )
+            )
 
         # A3 buildings: two bands of one Roof row over one Wall row.
         # Both rows compose from the wall table, hence the side
@@ -393,11 +484,12 @@ class GodotTerrainBuilder:
         godot_tileset: GodotTileSet,
         kind_assignment: dict[SheetType, dict[int, tuple[int, bool]]],
     ) -> dict:
-        """Attach terrain data to every A3/A4 tile of the Godot tileset."""
+        """Attach terrain data to every A2/A3/A4 tile of the Godot tileset."""
 
         tile_terrains = {}
 
         shapes_per_autotile = {
+            SheetType.A2: A2_SHAPES_PER_AUTOTILE,
             SheetType.A3: A3_SHAPES_PER_AUTOTILE,
             SheetType.A4: A4_SHAPES_PER_AUTOTILE,
         }

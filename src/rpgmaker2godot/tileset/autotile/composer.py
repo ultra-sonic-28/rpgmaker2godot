@@ -21,6 +21,14 @@ from .shapes import (
 QUARTER_SIZE = 24
 TILE_SIZE = 48
 
+# One quarter piece: ``(qx, qy, dx, dy)`` selects a full 24x24 quarter;
+# the optional fifth element narrows the piece to the top ``height``
+# pixels of that quarter (12px halves, used by the A2 table rendering).
+QuarterPiece = tuple[int, int, int, int] | tuple[int, int, int, int, int]
+
+# One composition: a draw-ordered tuple of quarter pieces.
+Quarters = tuple[QuarterPiece, ...]
+
 
 def compose_autotile(
     source: Image.Image,
@@ -83,24 +91,27 @@ def compose_autotile(
 
 def compose_quarters(
     source: Image.Image,
-    quarters: tuple[tuple[int, int, int, int], ...],
+    quarters: Quarters,
 ) -> Image.Image:
     """Build one 48x48 tile from absolute quarter coordinates.
 
-    ``quarters`` is a ``(qx, qy, dx, dy)`` tuple in draw order, as
-    produced by ``a3_shape_quarters`` / ``a4_shape_quarters``:
-    ``(qx, qy)`` locates the 24x24 piece in ``source`` (absolute
-    pixel coordinates) and ``(dx, dy)`` places it inside the resulting
-    tile.
+    ``quarters`` is a draw-ordered tuple of ``(qx, qy, dx, dy)`` (or
+    ``(qx, qy, dx, dy, height)``) pieces, as produced by
+    ``a2_shape_quarters`` / ``a3_shape_quarters`` / ``a4_shape_quarters``:
+    ``(qx, qy)`` locates the piece in ``source`` (absolute pixel
+    coordinates) and ``(dx, dy)`` places it inside the resulting tile.
+    A piece is 24px wide; its height is 24px (a full quarter) or, when
+    the fifth element is given, exactly that many pixels cropped from
+    the top of the quarter (12px halves, used by the A2 table
+    rendering).
 
     Returns:
-        A new 48x48 RGBA image assembled from the four quarters.
+        A new 48x48 RGBA image assembled from the quarter pieces.
     """
 
-    if len(quarters) != 4:
+    if not quarters:
         raise ValueError(
-            f"An autotile tile must pick exactly 4 quarters, "
-            f"got {len(quarters)}."
+            "An autotile tile must pick at least one quarter piece."
         )
 
     tile = Image.new(
@@ -109,22 +120,28 @@ def compose_quarters(
         (0, 0, 0, 0),
     )
 
-    for quarter_x, quarter_y, dest_x, dest_y in quarters:
-        piece = source.crop(
+    for piece in quarters:
+        if len(piece) == 5:
+            quarter_x, quarter_y, dest_x, dest_y, piece_height = piece
+        else:
+            quarter_x, quarter_y, dest_x, dest_y = piece
+            piece_height = QUARTER_SIZE
+
+        piece_image = source.crop(
             (
                 quarter_x,
                 quarter_y,
                 quarter_x + QUARTER_SIZE,
-                quarter_y + QUARTER_SIZE,
+                quarter_y + piece_height,
             )
         )
 
         tile.alpha_composite(
-            piece,
+            piece_image,
             (dest_x, dest_y),
         )
 
-        piece.close()
+        piece_image.close()
 
     return tile
 

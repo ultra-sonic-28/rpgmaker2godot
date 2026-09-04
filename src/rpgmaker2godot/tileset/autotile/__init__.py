@@ -1,3 +1,10 @@
+from .a2 import (
+    A2_UNIQUE_COMPOSITION_COUNT,
+    a2_shape_quarters,
+    a2_source_region,
+    a2_unique_compositions,
+    a2_unique_tiles,
+)
 from .a3 import (
     A3_UNIQUE_COMPOSITION_COUNT,
     a3_shape_quarters,
@@ -9,6 +16,8 @@ from .a4 import a4_source_region, a4_unique_tiles
 from .composer import (
     QUARTER_SIZE,
     TILE_SIZE,
+    QuarterPiece,
+    Quarters,
     compose_autotile,
     compose_quarters,
     unfold_autotile,
@@ -23,12 +32,19 @@ from .shapes import (
 from .unique import unique_tiles
 
 __all__ = [
+    "A2_UNIQUE_COMPOSITION_COUNT",
     "A3_UNIQUE_COMPOSITION_COUNT",
     "FLOOR_AUTOTILE_TABLE",
     "QUARTER_SIZE",
     "TILE_SIZE",
     "WALL_AUTOTILE_TABLE",
     "AutotileShape",
+    "QuarterPiece",
+    "Quarters",
+    "a2_shape_quarters",
+    "a2_source_region",
+    "a2_unique_compositions",
+    "a2_unique_tiles",
     "a3_shape_quarters",
     "a3_source_region",
     "a3_unique_compositions",

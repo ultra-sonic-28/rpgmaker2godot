@@ -11,10 +11,10 @@ from rpgmaker2godot.analysis.models import (
     SheetInfo,
 )
 from rpgmaker2godot.conversion import SimpleConverter
-from rpgmaker2godot.model import SheetType
+from rpgmaker2godot.model import SheetType, Tileset
 from rpgmaker2godot.model.tile import Tile
 from rpgmaker2godot.model.tile_collision import TileCollision
-from rpgmaker2godot.tileset.model import TileProperties
+from rpgmaker2godot.tileset.model import TileProperties, TilesetFlags
 from rpgmaker2godot.tileset.tile_id import tile_to_tile_id
 
 
@@ -1102,5 +1102,343 @@ def test_no_merge_keeps_a3_sheet_split(tmp_path: Path) -> None:
 
     assert [tileset.name for tileset in result.tilesets] == [
         "Inside_A3",
+        "Inside_B",
+    ]
+
+
+def write_a2_sheet(
+    path: Path,
+    *,
+    uniform_band: tuple[int, int] | None = None,
+) -> None:
+    """Write a canonical 768x576 A2 sheet with injective quarters.
+
+    Every 24x24 quarter receives a colour derived from its (qx, qy)
+    position; the mapping is injective over the whole sheet, so no two
+    compositions can render identically and the pixel-level
+    deduplication behaves exactly like the composition-level one
+    (1536 tiles). ``uniform_band`` optionally paints the pixel rows
+    ``[start, end)`` with one flat colour: every autotile whose source
+    lies inside that band then composes identical tiles, which the
+    converter must merge.
+    """
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    image = Image.new("RGBA", (768, 576))
+
+    for y in range(0, 576, 24):
+        for x in range(0, 768, 24):
+            qx, qy = x // 24, y // 24
+
+            if (
+                uniform_band is not None
+                and uniform_band[0] <= y < uniform_band[1]
+            ):
+                color = (200, 200, 200, 255)
+            else:
+                color = (
+                    (qx * 37) % 256,
+                    (qy * 61) % 256,
+                    (qx + qy * 3) % 256,
+                    255,
+                )
+
+            image.paste(color, (x, y, x + 24, y + 24))
+
+    image.save(path)
+    image.close()
+
+
+def test_a2_sheet_is_fully_unfolded(tmp_path: Path) -> None:
+    """A2 unfolds its 1536 shape IDs into 1536 packed tiles."""
+
+    source_path = tmp_path / "Inside_A2.png"
+
+    write_a2_sheet(source_path)
+
+    sheet = (
+        SimpleConverter()
+        .convert(
+            make_analysis(
+                make_sheet("Inside", SheetType.A2, 768, 576, path=source_path),
+            )
+        )
+        .tilesets[0]
+        .sheets[0]
+    )
+
+    assert sheet.sheet_type == SheetType.A2
+    assert len(sheet.tiles) == 1536
+
+    # Packed metadata: 16 tiles per row, 96 rows of 768px.
+    assert sheet.columns == 16
+    assert sheet.rows == 96
+    assert sheet.width == 768
+    assert sheet.height == 96 * 48
+
+    # Sequential packed slots in engine ID order.
+    indexes = [tile.ref.index for tile in sheet.tiles]
+    assert indexes == list(range(1536))
+
+    slots = [(tile.x // 48, tile.y // 48) for tile in sheet.tiles]
+    assert slots == [(slot % 16, slot // 16) for slot in range(1536)]
+
+    # Diagnostic coordinates of the source slot: column = kind % 8,
+    # row = kind // 8.
+    first_kind_9 = sheet.tiles[9 * 48]
+
+    assert (first_kind_9.column, first_kind_9.row) == (1, 1)
+
+
+def test_a2_rejects_wrong_dimensions(tmp_path: Path) -> None:
+    """A2 unfolding requires the canonical 768x576 sheet size."""
+
+    source_path = tmp_path / "Inside_A2.png"
+
+    write_a2_sheet(source_path)
+
+    with pytest.raises(ValueError, match="A2 sheets must be 768x576px"):
+        SimpleConverter().convert(
+            make_analysis(
+                make_sheet("Inside", SheetType.A2, 768, 384, path=source_path),
+            )
+        )
+
+
+def test_a2_pixel_dedup_merges_across_autotile_kinds(
+    tmp_path: Path,
+) -> None:
+    """Graphically identical tiles merge even across autotile kinds.
+
+    Kinds 0-7 occupy the first source band (source rows y=0..144).
+    Painting that pixel band with one flat colour makes every
+    composition of those eight kinds render identically, so they
+    collapse to a single packed tile while all other autotiles keep
+    their full set of distinct shapes:
+
+        1 merged tile + 24 kinds x 48 shapes = 1153.
+    """
+
+    source_path = tmp_path / "Inside_A2.png"
+
+    write_a2_sheet(source_path, uniform_band=(0, 144))
+
+    sheet = (
+        SimpleConverter()
+        .convert(
+            make_analysis(
+                make_sheet("Inside", SheetType.A2, 768, 576, path=source_path),
+            )
+        )
+        .tilesets[0]
+        .sheets[0]
+    )
+
+    indexes = [tile.ref.index for tile in sheet.tiles]
+
+    assert len(indexes) == 1 + 24 * 48
+
+    # The merged tile is the first Ground engine ID (kind 0, shape 0).
+    assert 0 in indexes
+
+    # No other kind of the first band survives.
+    assert 48 not in indexes
+    assert 7 * 48 + 15 not in indexes
+
+    # The second band's kinds are untouched.
+    assert 8 * 48 + 15 in indexes
+    assert 31 * 48 + 15 in indexes
+
+    # Survivors still occupy sequential packed slots (16 per row).
+    slots = {(tile.x // 48, tile.y // 48) for tile in sheet.tiles}
+    assert slots == {(slot % 16, slot // 16) for slot in range(len(indexes))}
+
+    assert sheet.rows == math.ceil(len(indexes) / 16)
+
+
+def test_a2_tile_ids_map_to_engine_ids(tmp_path: Path) -> None:
+    """Unfolded A2 tiles map to ID = TILE_ID_A2 + kind*48 + shape."""
+
+    source_path = tmp_path / "Inside_A2.png"
+
+    write_a2_sheet(source_path)
+
+    sheet = (
+        SimpleConverter()
+        .convert(
+            make_analysis(
+                make_sheet("Inside", SheetType.A2, 768, 576, path=source_path),
+            )
+        )
+        .tilesets[0]
+        .sheets[0]
+    )
+
+    first = sheet.tiles[0]
+
+    assert first.ref.index == 0
+    assert tile_to_tile_id(first) == 2816 + 0
+
+    # Autotile 1 = local_kind 0, shape 1; the start of kind 1 is
+    # index 48 (every A2 kind keeps all 48 shapes).
+    assert tile_to_tile_id(sheet.tiles[1]) == 2816 + 1
+    assert tile_to_tile_id(sheet.tiles[9]) == 2816 + 9
+    assert sheet.tiles[48].ref.index == 48
+    assert tile_to_tile_id(sheet.tiles[48]) == 2816 + 48
+    assert tile_to_tile_id(sheet.tiles[1535]) == 2816 + 1535
+
+
+def test_a2_tiles_carry_their_quarters(tmp_path: Path) -> None:
+    """Converter tiles store the engine composition of their shape."""
+
+    from rpgmaker2godot.tileset.autotile.a2 import a2_shape_quarters
+
+    source_path = tmp_path / "Inside_A2.png"
+
+    write_a2_sheet(source_path)
+
+    sheet = (
+        SimpleConverter()
+        .convert(
+            make_analysis(
+                make_sheet("Inside", SheetType.A2, 768, 576, path=source_path),
+            )
+        )
+        .tilesets[0]
+        .sheets[0]
+    )
+
+    tile = sheet.tiles[8]
+
+    assert tile.ref.index == 8
+    assert tile.quarters == a2_shape_quarters(0, 8)
+
+
+def test_a2_counter_flag_enables_table_rendering(tmp_path: Path) -> None:
+    """A2 kinds flagged as counter compose the engine's table variant.
+
+    ``Tilemap._isTableTile`` reads the ``0x80`` flag: kind 0's shapes
+    render their row-1/row-5 quarters through the row-3 surface. The
+    stored quarters (and therefore the atlas rendering) follow the
+    flag, while unflagged kinds keep the plain composition.
+    """
+
+    from rpgmaker2godot.atlas import AtlasBuilder
+    from rpgmaker2godot.tileset.autotile.a2 import a2_shape_quarters
+    from rpgmaker2godot.tileset.resolver import TilePropertiesResolver
+
+    source_path = tmp_path / "Inside_A2.png"
+
+    write_a2_sheet(source_path)
+
+    # RPG Maker writes one flag value per autotile kind: kind 0 is a
+    # counter/table, the other kinds stay plain passable ground.
+    flags = [0] * (2816 + 1536)
+
+    for shape in range(48):
+        flags[2816 + shape] = 0x0080
+
+    resolver = TilePropertiesResolver(
+        {
+            "Inside": TilesetFlags(
+                id=1,
+                name="Inside",
+                flags=tuple(flags),
+            ),
+        }
+    )
+
+    sheet = (
+        SimpleConverter(tile_properties_resolver=resolver)
+        .convert(
+            make_analysis(
+                make_sheet("Inside", SheetType.A2, 768, 576, path=source_path),
+            )
+        )
+        .tilesets[0]
+        .sheets[0]
+    )
+
+    table_tile = sheet.tiles[8]
+
+    assert table_tile.quarters == a2_shape_quarters(0, 8, is_table=True)
+
+    # Kind 1 is not a counter: plain composition.
+    plain_tile = sheet.tiles[48 + 8]
+
+    assert plain_tile.quarters == a2_shape_quarters(1, 8, is_table=False)
+
+    # The atlas stage renders the stored composition: the row-1 quarter
+    # of the table tile splits into a full piece plus a 12px half.
+    atlas = AtlasBuilder().build(Tileset(name="Inside", sheets=(sheet,)))
+
+    placement = next(
+        placement
+        for placement in atlas.placements
+        if placement.tile.index == 8
+    )
+
+    assert placement.quarters[2].height == 24
+    assert placement.quarters[3].height == 12
+    assert placement.quarters[3].dest_y == 36
+
+
+def test_merge_groups_a2_a3_and_a4_into_the_autotile_output(
+    tmp_path: Path,
+) -> None:
+    """A2, A3 and A4 sheets of one prefix stack into ``_Autotile``."""
+
+    a2_path = tmp_path / "Inside_A2.png"
+    a3_path = tmp_path / "Inside_A3.png"
+    a4_path = tmp_path / "Inside_A4.png"
+
+    write_a2_sheet(a2_path)
+    write_a3_sheet(a3_path)
+    write_a4_sheet(a4_path)
+
+    analysis = make_analysis(
+        make_sheet("Inside", SheetType.A2, 768, 576, path=a2_path),
+        make_sheet("Inside", SheetType.A3, 768, 384, path=a3_path),
+        make_sheet("Inside", SheetType.A4, 768, 720, path=a4_path),
+        make_sheet("Inside", SheetType.B, 768, 768),
+    )
+
+    result = SimpleConverter().convert(analysis)
+
+    assert [tileset.name for tileset in result.tilesets] == [
+        "Inside_Autotile",
+        "Inside",
+    ]
+
+    autotile_tileset = result.tilesets[0]
+
+    # Canonical stacking order: the A2 ground under the A3 buildings
+    # under the A4 walls.
+    assert [
+        sheet.sheet_type for sheet in autotile_tileset.sheets
+    ] == [SheetType.A2, SheetType.A3, SheetType.A4]
+
+    assert len(autotile_tileset.sheets[0].tiles) == 1536
+    assert len(autotile_tileset.sheets[1].tiles) == 512
+    assert len(autotile_tileset.sheets[2].tiles) == 1536
+
+
+def test_no_merge_keeps_a2_sheet_split(tmp_path: Path) -> None:
+    """--no-merge exports the A2 sheet on its own."""
+
+    a2_path = tmp_path / "Inside_A2.png"
+
+    write_a2_sheet(a2_path)
+
+    analysis = make_analysis(
+        make_sheet("Inside", SheetType.A2, 768, 576, path=a2_path),
+        make_sheet("Inside", SheetType.B, 768, 768),
+    )
+
+    result = SimpleConverter(no_merge=True).convert(analysis)
+
+    assert [tileset.name for tileset in result.tilesets] == [
+        "Inside_A2",
         "Inside_B",
     ]

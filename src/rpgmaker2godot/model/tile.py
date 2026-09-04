@@ -40,6 +40,16 @@ class Tile:
     parts of the pipeline that do not have access to Tilesets.json.
     This preserves the existing behaviour of the converter when no
     TilePropertiesResolver is configured.
+
+    ``quarters`` carries the unfolded autotile composition of the tile
+    (A2/A3/A4): a draw-ordered tuple of ``(qx, qy, dx, dy)`` — or
+    ``(qx, qy, dx, dy, height)`` for the A2 table halves — pieces
+    locating the 24px-wide source pieces inside the finished 48x48
+    tile. The converter fills it so the atlas stage renders exactly the
+    composition the converter decoded (the A2 table rendering depends
+    on the tileset's flags, which the atlas stage cannot see). It stays
+    ``None`` on plain-sheet tiles and on manually built tiles, in which
+    case the atlas stage falls back to the engine shape functions.
     """
     
     ref: TileRef
@@ -51,6 +61,7 @@ class Tile:
     height: int
     properties: TileProperties | None = None
     collision: TileCollision | None = None
+    quarters: tuple[tuple[int, ...], ...] | None = None
 
 
 __all__ = [

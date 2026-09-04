@@ -7,13 +7,15 @@ from rpgmaker2godot.model.tile_collision import TileCollision
 
 @dataclass(frozen=True)
 class AtlasQuarter:
-    """One 24x24 source piece pasted into the atlas tile.
+    """One 24px-wide source piece pasted into the atlas tile.
 
-    Used by the A4 "unfolded autotile" placements: those tiles are not a
-    single rectangular crop of the source sheet, they are composed of
-    four quarters. ``source_x``/``source_y`` locate the piece in the
-    source sheet and ``dest_x``/``dest_y`` place it inside the atlas
-    tile (atlas_x + dest_x, atlas_y + dest_y).
+    Used by the "unfolded autotile" placements (A2/A3/A4): those tiles
+    are not a single rectangular crop of the source sheet, they are
+    composed of quarter pieces. ``source_x``/``source_y`` locate the
+    piece in the source sheet and ``dest_x``/``dest_y`` place it inside
+    the atlas tile (atlas_x + dest_x, atlas_y + dest_y). A piece is
+    24px wide and usually 24px tall; the A2 table rendering also emits
+    12px-tall halves.
     """
 
     source_x: int

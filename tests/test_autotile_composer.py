@@ -7,8 +7,16 @@ from rpgmaker2godot.tileset.autotile import (
     TILE_SIZE,
     WALL_AUTOTILE_TABLE,
     compose_autotile,
+    compose_quarters,
     unfold_floor_autotile,
     unfold_wall_autotile,
+)
+from rpgmaker2godot.tileset.autotile.a2 import (
+    A2_HEIGHT,
+    A2_WIDTH,
+    a2_shape_quarters,
+    a2_source_region,
+    a2_unique_tiles,
 )
 from rpgmaker2godot.tileset.autotile.a3 import a3_source_region, a3_unique_tiles
 from rpgmaker2godot.tileset.autotile.a4 import a4_source_region, a4_unique_tiles
@@ -549,5 +557,280 @@ def test_a3_unique_tiles_tolerance_merges_noisy_variants() -> None:
     assert len(tolerant) == 1
     assert tolerant[0][0] == 0
     assert tolerant[0][1] == a3_shape_quarters(0, 0)
+
+    source.close()
+
+
+def test_a2_source_region_maps_slots() -> None:
+    # Column 0, topmost row.
+    assert a2_source_region(0) == (0, 0)
+
+    # Column 1 (tx=1), same row: (1*96, 0).
+    assert a2_source_region(1) == (96, 0)
+
+    # Column 0, second row: (0, 1*144).
+    assert a2_source_region(8) == (0, 144)
+
+    # Column 4, row 3: (4*96, 3*144).
+    assert a2_source_region(3 * 8 + 4) == (384, 432)
+
+    # Last autotile (slot 31): tx=7, ty=3: (7*96, 3*144).
+    assert a2_source_region(31) == (672, 432)
+
+
+def test_a2_source_region_rejects_out_of_range_kinds() -> None:
+    from rpgmaker2godot.tileset.autotile.a2 import A2_AUTOTILE_COUNT
+
+    with pytest.raises(ValueError):
+        a2_source_region(A2_AUTOTILE_COUNT)
+
+    with pytest.raises(ValueError):
+        a2_source_region(-1)
+
+
+def test_a2_shape_quarters_use_the_floor_table() -> None:
+    """A2 sources span 6 quarter rows and compose FLOOR_AUTOTILE_TABLE."""
+
+    # Shape 0 = ((2, 4), (1, 4), (2, 3), (1, 3)), offset by the source
+    # region of kind 1: (96, 0).
+    quarters = a2_shape_quarters(1, 0)
+
+    assert quarters[0] == (
+        96 + 2 * QUARTER_SIZE,
+        0 + 4 * QUARTER_SIZE,
+        0,
+        0,
+        QUARTER_SIZE,
+    )
+    assert quarters[3] == (
+        96 + 1 * QUARTER_SIZE,
+        0 + 3 * QUARTER_SIZE,
+        QUARTER_SIZE,
+        QUARTER_SIZE,
+        QUARTER_SIZE,
+    )
+
+    # Shape 47 selects the top-left corner quarters of the source.
+    quarters_47 = a2_shape_quarters(2, 47)
+
+    assert quarters_47[0] == (192, 0, 0, 0, QUARTER_SIZE)
+
+
+def test_a2_table_shape_replaces_outer_quarter_rows() -> None:
+    """Table kinds render rows 1/5 quarters through the row-3 surface.
+
+    Shape 8 = ((2, 4), (1, 4), (2, 1), (1, 3)). Its third quarter —
+    (2, 1), in quarter row 1 — is replaced by the full mirrored row-3
+    quarter (qsx2 = (4 - 2) % 4 = 2) with the top half of the original
+    quarter redrawn over its bottom half. The other quarters are
+    untouched.
+    """
+
+    plain = a2_shape_quarters(0, 8)
+    table = a2_shape_quarters(0, 8, is_table=True)
+
+    # The two quarters outside rows 1/5 are unchanged.
+    assert table[0] == plain[0]
+    assert table[1] == plain[1]
+    assert table[4] == plain[3]
+
+    # Row-1 quarter: full mirrored surface quarter...
+    assert table[2] == (
+        2 * QUARTER_SIZE,
+        3 * QUARTER_SIZE,
+        0,
+        24,
+        QUARTER_SIZE,
+    )
+
+    # ...then the top half of the original quarter at dest y + 12.
+    assert table[3] == (2 * QUARTER_SIZE, 1 * QUARTER_SIZE, 0, 36, 12)
+
+
+def test_a2_table_shape_keeps_row_5_quarters_unmirrored() -> None:
+    """Row 1 quarters are mirrored; row 5 quarters keep their column.
+
+    Shape 33 = ((2, 2), (1, 2), (2, 5), (1, 5)): its two bottom
+    quarters sit in quarter row 5, whose surface replacements reuse
+    their own column (qsx2 = qsx).
+    """
+
+    table = a2_shape_quarters(0, 33, is_table=True)
+
+    assert table[2] == (2 * QUARTER_SIZE, 3 * QUARTER_SIZE, 0, 24, QUARTER_SIZE)
+    assert table[3] == (2 * QUARTER_SIZE, 5 * QUARTER_SIZE, 0, 36, 12)
+
+    assert table[4] == (1 * QUARTER_SIZE, 3 * QUARTER_SIZE, 24, 24, QUARTER_SIZE)
+    assert table[5] == (1 * QUARTER_SIZE, 5 * QUARTER_SIZE, 24, 36, 12)
+
+
+def test_a2_composes_table_tile_like_the_engine() -> None:
+    """The table composition redraws the affected quarter cell halves."""
+
+    source = _make_source_96(4, 6)
+
+    tile = compose_quarters(source, a2_shape_quarters(0, 8, is_table=True))
+
+    # Bottom-left quarter cell (dest 0, 24): its top half shows the
+    # row-3 quarter of column 2, its bottom half the top half of the
+    # original (2, 1) quarter.
+    assert tile.getpixel((12, 30)) == _quarter_colour(2, 3)
+    assert tile.getpixel((12, 40)) == _quarter_colour(2, 1)
+
+    # Unaffected quarter cells keep the plain composition.
+    assert tile.getpixel((12, 12)) == _quarter_colour(2, 4)
+    assert tile.getpixel((36, 12)) == _quarter_colour(1, 4)
+    assert tile.getpixel((36, 36)) == _quarter_colour(1, 3)
+
+    tile.close()
+    source.close()
+
+
+def test_a2_composes_plain_tile_when_not_a_table() -> None:
+    """Without the counter flag every quarter is pasted whole."""
+
+    source = _make_source_96(4, 6)
+
+    tile = compose_quarters(source, a2_shape_quarters(0, 8))
+
+    # The bottom-left quarter cell shows the whole (2, 1) quarter.
+    assert tile.getpixel((12, 30)) == _quarter_colour(2, 1)
+    assert tile.getpixel((12, 40)) == _quarter_colour(2, 1)
+
+    tile.close()
+    source.close()
+
+
+def test_a2_unique_compositions_yield_1536_tiles() -> None:
+    """The 1536 raw A2 shape IDs are all distinct compositions."""
+
+    from collections import Counter
+
+    from rpgmaker2godot.tileset.autotile.a2 import (
+        A2_SHAPES_PER_AUTOTILE,
+        A2_UNIQUE_COMPOSITION_COUNT,
+        a2_unique_compositions,
+    )
+
+    unique = list(a2_unique_compositions())
+
+    assert A2_UNIQUE_COMPOSITION_COUNT == 1536
+    assert len(unique) == 1536
+
+    # First occurrences, emitted in ascending engine ID order.
+    indexes = [index for index, _quarters in unique]
+    assert indexes == sorted(indexes)
+
+    # Every kind contributes its 48 shapes (no wall-table cycling).
+    per_kind = Counter(
+        index // A2_SHAPES_PER_AUTOTILE for index, _quarters in unique
+    )
+    assert sorted(set(per_kind.values())) == [48]
+    assert len(per_kind) == 32
+
+    # No composition is emitted twice.
+    compositions = {quarters for _index, quarters in unique}
+    assert len(compositions) == len(unique)
+
+
+def test_a2_unique_compositions_with_table_kinds() -> None:
+    """Table kinds compose the table variant of their quarter sets."""
+
+    from rpgmaker2godot.tileset.autotile.a2 import a2_unique_compositions
+
+    unique = dict(a2_unique_compositions(table_kinds=(5,)))
+
+    # Kind 5's compositions equal the table variant, kind 0's the
+    # plain one.
+    assert unique[5 * 48 + 8] == a2_shape_quarters(5, 8, is_table=True)
+    assert unique[0 * 48 + 8] == a2_shape_quarters(0, 8, is_table=False)
+
+
+def test_a2_unique_tiles_merges_graphically_identical_tiles() -> None:
+    """Compositions that render identically collapse to one tile.
+
+    A fully uniform A2 sheet makes every 24x24 quarter identical: all
+    1536 raw variants compose the exact same 48x48 tile, so a single
+    entry survives — the first engine ID (kind 0, shape 0).
+    """
+
+    source = Image.new("RGBA", (A2_WIDTH, A2_HEIGHT), (90, 90, 90, 255))
+
+    unique = list(a2_unique_tiles(source))
+
+    assert len(unique) == 1
+
+    index, quarters = unique[0]
+
+    assert index == 0
+    assert quarters == a2_shape_quarters(0, 0)
+
+    source.close()
+
+
+def _make_a2_sheet() -> Image.Image:
+    """Synthetic 768x576 A2 sheet with injective quarter colours.
+
+    Every 24x24 quarter of the whole sheet receives a colour derived
+    from its (qx, qy) position; the mapping is injective, so two
+    compositions render identically only when they select the exact
+    same quarters.
+    """
+
+    sheet = Image.new("RGBA", (A2_WIDTH, A2_HEIGHT))
+
+    for qy in range(A2_HEIGHT // QUARTER_SIZE):
+        for qx in range(A2_WIDTH // QUARTER_SIZE):
+            colour = (
+                (qx * 7) % 256,
+                (qy * 10) % 256,
+                (qx + qy) % 256,
+                255,
+            )
+
+            sheet.paste(
+                colour,
+                (
+                    qx * QUARTER_SIZE,
+                    qy * QUARTER_SIZE,
+                    (qx + 1) * QUARTER_SIZE,
+                    (qy + 1) * QUARTER_SIZE,
+                ),
+            )
+
+    return sheet
+
+
+def test_a2_unique_tiles_keeps_table_variants_distinct() -> None:
+    """A table kind composes the table variant of every shape.
+
+    On a sheet whose every quarter is drawn (injective quarter
+    colours), all 1536 compositions stay alive either way, but kind 0
+    marked as a table composes the table variant of its shapes.
+    """
+
+    source = _make_a2_sheet()
+
+    plain = list(a2_unique_tiles(source))
+    table = list(a2_unique_tiles(source, table_kinds=(0,)))
+
+    # Every shape survives either way (injective quarter colours).
+    assert len(plain) == 1536
+    assert len(table) == 1536
+
+    # But kind 0's shape-8 composition is the table variant now.
+    assert table[8][1] == a2_shape_quarters(0, 8, is_table=True)
+    assert plain[8][1] == a2_shape_quarters(0, 8, is_table=False)
+
+    source.close()
+
+
+def test_a2_unique_tiles_rejects_negative_tolerance() -> None:
+    """A negative tolerance is rejected before any composition runs."""
+
+    source = Image.new("RGBA", (96, 96), (90, 90, 90, 255))
+
+    with pytest.raises(ValueError):
+        list(a2_unique_tiles(source, tolerance=-1))
 
     source.close()

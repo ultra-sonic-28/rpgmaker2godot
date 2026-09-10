@@ -15,6 +15,18 @@ from rpgmaker2godot.model import (
 )
 from rpgmaker2godot.model.enums import SheetType
 from rpgmaker2godot.model.tile_collision import TileCollision
+from rpgmaker2godot.tileset.autotile.a1 import (
+    A1_FRAME_STRIDE,
+    A1_HEIGHT,
+    A1_PACK_COLUMNS,
+    A1_PACK_WIDTH,
+    A1_SHAPES_PER_AUTOTILE,
+    A1_WIDTH,
+    a1_animation_id,
+    a1_kind_frames,
+    a1_shape_quarters,
+    a1_unique_tiles,
+)
 from rpgmaker2godot.tileset.autotile.a2 import (
     A2_AUTOTILE_COUNT,
     A2_HEIGHT,
@@ -83,7 +95,8 @@ class SimpleConverter:
         self._no_merge = no_merge
 
         # Maximum number of pixels that may differ between two unfolded
-        # A2/A3/A4 tiles for them to merge (0 = byte-exact, the default).
+        # A1/A2/A3/A4 tiles for them to merge (0 = byte-exact, the
+        # default).
         if autotile_pixel_tolerance < 0:
             raise ValueError(
                 "autotile_pixel_tolerance must be >= 0, "
@@ -188,6 +201,12 @@ class SimpleConverter:
         ``<prefix>_Autotile``.
         """
 
+        if sheet_info.sheet_type == SheetType.A1:
+            return self._convert_a1_sheet(
+                rpg_tileset_name,
+                sheet_info,
+            )
+
         if sheet_info.sheet_type == SheetType.A2:
             return self._convert_a2_sheet(
                 rpg_tileset_name,
@@ -224,6 +243,117 @@ class SimpleConverter:
             columns=sheet_info.columns,
             rows=sheet_info.rows,
             tiles=tiles,
+        )
+
+    def _convert_a1_sheet(
+        self,
+        rpg_tileset_name: str,
+        sheet_info: SheetInfo,
+    ) -> Sheet:
+        """Convert an A1 water-autotile sheet into its unfolded tiles.
+
+        The A1 sheet (``*_A1.png``, 768x576) stores 16 autotile
+        **sources** with their animation frames: animated waters keep
+        three 96x144 frames side by side, static waters (kinds 2 and 3)
+        a single frame, and waterfalls three 96x48 frames stacked
+        vertically. Following the authoritative mapping in
+        ``rmmz_core.js``, waters compose from the shared 48-shape
+        FLOOR_AUTOTILE_TABLE and waterfalls from the 4-shape
+        WATERFALL_AUTOTILE_TABLE.
+
+        Every kept (kind, shape) composition emits **one tile per
+        animation frame**, packed on consecutive atlas slots (Godot's
+        animated tiles occupy the grid cells right of their base tile)
+        and never straddling two rows of the 16-per-row grid. Only the
+        **graphically distinct** compositions are kept
+        (``a1_unique_tiles``): the pixel comparison covers the whole
+        frame sequence, and graphically identical tiles stay separate
+        when they resolve to a different collision or a different
+        animation family (water / waterfall / static).
+
+        Each kept tile is encoded as ``TileRef.index =
+        (kind * 48 + shape) * A1_FRAME_STRIDE + frame`` — the RPG Maker
+        Tile ID is ``TILE_ID_A1 + index // A1_FRAME_STRIDE``. The
+        sheet's conversion metadata describes the **packed** result
+        (16 tiles per row), not the source image.
+        """
+
+        if (
+            sheet_info.width != A1_WIDTH
+            or sheet_info.height != A1_HEIGHT
+        ):
+            raise ValueError(
+                f"{sheet_info.path.name}: A1 sheets must be "
+                f"{A1_WIDTH}x{A1_HEIGHT}px, got "
+                f"{sheet_info.width}x{sheet_info.height}px."
+            )
+
+        source = Image.open(sheet_info.path).convert("RGBA")
+
+        try:
+            unique = list(
+                a1_unique_tiles(
+                    source,
+                    tolerance=self._autotile_pixel_tolerance,
+                    dedup_key=self._a1_dedup_key(rpg_tileset_name),
+                )
+            )
+        finally:
+            source.close()
+
+        tiles: list[Tile] = []
+        slot = 0
+
+        for index, _joint_quarters in unique:
+            composition = index // A1_FRAME_STRIDE
+
+            local_kind = composition // A1_SHAPES_PER_AUTOTILE
+            shape = composition % A1_SHAPES_PER_AUTOTILE
+            frames = a1_kind_frames(local_kind)
+
+            # Godot's animation frames occupy the atlas grid cells
+            # right of the base tile; a group must never straddle two
+            # rows, so pad to the next row when it would.
+            if (slot % A1_PACK_COLUMNS) + frames > A1_PACK_COLUMNS:
+                slot += A1_PACK_COLUMNS - (slot % A1_PACK_COLUMNS)
+
+            for frame in range(frames):
+                # Packed atlas position: the frame's slot on the
+                # 16-per-row grid.
+                x = (slot % A1_PACK_COLUMNS) * 48
+                y = (slot // A1_PACK_COLUMNS) * 48
+
+                tile = self._create_tile(
+                    rpg_tileset_name=rpg_tileset_name,
+                    sheet_type=SheetType.A1,
+                    index=composition * A1_FRAME_STRIDE + frame,
+                    column=local_kind % 8,
+                    row=local_kind // 8,
+                    x=x,
+                    y=y,
+                    width=48,
+                    height=48,
+                    quarters=a1_shape_quarters(local_kind, shape, frame),
+                )
+
+                tiles.append(
+                    self._resolve_tile_properties(tile)
+                )
+
+                slot += 1
+
+        pack_rows = math.ceil(slot / A1_PACK_COLUMNS)
+
+        return Sheet(
+            sheet_type=SheetType.A1,
+            source_path=sheet_info.path,
+            width=A1_PACK_WIDTH,
+            height=pack_rows * 48,
+            tile_width=48,
+            tile_height=48,
+            columns=A1_PACK_COLUMNS,
+            rows=pack_rows,
+            tiles=tuple(tiles),
         )
 
     def _convert_a2_sheet(
@@ -551,6 +681,63 @@ class SimpleConverter:
                 table_kinds.add(kind)
 
         return frozenset(table_kinds)
+
+    def _a1_dedup_key(
+        self,
+        rpg_tileset_name: str,
+    ) -> Callable[[int, bytes], tuple[str, TileCollision] | str]:
+        """Build the duplicate-identity hook for the A1 pixel dedup.
+
+        The pixel comparison itself (byte-exact, or within the
+        configured tolerance, over each candidate's whole animation
+        strip) is handled by ``a1_unique_tiles``. This hook adds the
+        animation family (see :func:`a1_animation_id`) — a water, a
+        waterfall and a static water rendering identically must never
+        merge, they would inherit the wrong animation — and, when a
+        properties resolver is configured, the collision: RPG Maker
+        flags live on the engine Tile IDs, so two autotile kinds can
+        look exactly the same while allowing a different passage.
+        """
+
+        resolver = self._tile_properties_resolver
+
+        def dedup_key(
+            index: int,
+            signature: bytes,
+        ) -> tuple[str, TileCollision] | str:
+            composition = index // A1_FRAME_STRIDE
+
+            local_kind = composition // A1_SHAPES_PER_AUTOTILE
+
+            animation_id = a1_animation_id(local_kind)
+
+            if resolver is None:
+                return animation_id
+
+            tile = Tile(
+                ref=TileRef(
+                    tileset=rpg_tileset_name,
+                    sheet_type=SheetType.A1,
+                    index=index,
+                ),
+                column=0,
+                row=0,
+                x=0,
+                y=0,
+                width=48,
+                height=48,
+            )
+
+            properties = resolver.resolve(tile)
+
+            collision = tile_properties_to_collision(
+                properties,
+                tile_id=tile_to_tile_id(tile),
+            )
+
+            return (animation_id, collision)
+
+        return dedup_key
 
     def _a2_dedup_key(
         self,

@@ -1,3 +1,17 @@
+from .a1 import (
+    A1_UNIQUE_COMPOSITION_COUNT,
+    a1_animation_durations,
+    a1_animation_id,
+    a1_composition_quarters,
+    a1_is_waterfall,
+    a1_kind_frames,
+    a1_kind_region,
+    a1_quarters_from_index,
+    a1_shape_quarters,
+    a1_source_region,
+    a1_unique_compositions,
+    a1_unique_tiles,
+)
 from .a2 import (
     A2_UNIQUE_COMPOSITION_COUNT,
     a2_shape_quarters,
@@ -27,20 +41,34 @@ from .composer import (
 from .shapes import (
     FLOOR_AUTOTILE_TABLE,
     WALL_AUTOTILE_TABLE,
+    WATERFALL_AUTOTILE_TABLE,
     AutotileShape,
 )
 from .unique import unique_tiles
 
 __all__ = [
+    "A1_UNIQUE_COMPOSITION_COUNT",
     "A2_UNIQUE_COMPOSITION_COUNT",
     "A3_UNIQUE_COMPOSITION_COUNT",
     "FLOOR_AUTOTILE_TABLE",
     "QUARTER_SIZE",
     "TILE_SIZE",
     "WALL_AUTOTILE_TABLE",
+    "WATERFALL_AUTOTILE_TABLE",
     "AutotileShape",
     "QuarterPiece",
     "Quarters",
+    "a1_animation_durations",
+    "a1_animation_id",
+    "a1_composition_quarters",
+    "a1_is_waterfall",
+    "a1_kind_frames",
+    "a1_kind_region",
+    "a1_quarters_from_index",
+    "a1_shape_quarters",
+    "a1_source_region",
+    "a1_unique_compositions",
+    "a1_unique_tiles",
     "a2_shape_quarters",
     "a2_source_region",
     "a2_unique_compositions",

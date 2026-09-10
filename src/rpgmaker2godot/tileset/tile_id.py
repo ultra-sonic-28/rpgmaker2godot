@@ -1,5 +1,6 @@
 from rpgmaker2godot.model.enums import SheetType
 from rpgmaker2godot.model.tile import Tile, TileRef
+from rpgmaker2godot.tileset.autotile.a1 import A1_FRAME_STRIDE
 
 SHEET_TILE_ID_BASE: dict[SheetType, int] = {
     # RPG Maker stores B-E in consecutive blocks of 256 IDs.
@@ -13,11 +14,14 @@ SHEET_TILE_ID_BASE: dict[SheetType, int] = {
 
     # The A-series autotile regions follow rmmz_core.js:
     #   A1 = 2048, A2 = 2816, A3 = 4352, A4 = 5888, MAX = 8192.
-    # A2 contains 32 autotiles x 48 shapes = 1536 Tile IDs, A3 contains
-    # 32 autotiles x 48 shapes = 1536 Tile IDs and A4 contains
-    # 48 autotiles x 48 shapes = 2304 Tile IDs. Our converter stores
-    # ``index = local_kind * 48 + shape`` on the TileRef so the
-    # Tile ID is simply ``base + index``.
+    # A1 contains 16 autotiles x 48 shapes = 768 Tile IDs, A2 contains
+    # 32 autotiles x 48 shapes = 1536 Tile IDs, A3 contains 32
+    # autotiles x 48 shapes = 1536 Tile IDs and A4 contains 48
+    # autotiles x 48 shapes = 2304 Tile IDs. Our converter stores
+    # ``index = local_kind * 48 + shape`` on the TileRef (multiplied by
+    # the A1 frame stride for A1, see tile_to_tile_id) so the Tile ID
+    # resolves from the index alone.
+    SheetType.A1: 2048,
     SheetType.A2: 2816,
     SheetType.A3: 4352,
     SheetType.A4: 5888,
@@ -32,13 +36,14 @@ SHEET_COLUMNS: dict[SheetType, int] = {
     SheetType.E: 16,
 
     # A5 is 8 columns wide; the 16-column entries below are the
-    # unfolded A2/A3/A4 sheets.
+    # unfolded A1/A2/A3/A4 sheets.
     SheetType.A5: 8,
 
-    # The unfolded A2/A3/A4 read as a flat 16-column grid in the
+    # The unfolded A1/A2/A3/A4 read as a flat 16-column grid in the
     # fallback pipeline path (their native layout covers the
     # side-by-side autotile sources). The true autotile interpretation
     # is handled by the autotile expander.
+    SheetType.A1: 16,
     SheetType.A2: 16,
     SheetType.A3: 16,
     SheetType.A4: 16,
@@ -51,6 +56,7 @@ SHEET_ROWS: dict[SheetType, int] = {
     SheetType.D: 16,
     SheetType.E: 16,
     SheetType.A5: 16,
+    SheetType.A1: 12,
     SheetType.A2: 12,
     SheetType.A3: 8,
     SheetType.A4: 15,
@@ -71,7 +77,11 @@ def tile_ref_to_tile_id(tile: TileRef) -> int:
 
     * B-E sheets store ``index = row * 16 + column``;
     * A5 stores ``index = row * 8 + column``;
-    * the unfolded A2/A3/A4 store ``index = local_kind * 48 + shape``.
+    * the unfolded A2/A3/A4 store ``index = local_kind * 48 + shape``;
+    * the unfolded A1 stores
+      ``index = (local_kind * 48 + shape) * A1_FRAME_STRIDE + frame``
+      (one slot per animation frame), so its Tile ID resolves from the
+      composition: ``base + index // A1_FRAME_STRIDE``.
     """
 
     try:
@@ -85,6 +95,9 @@ def tile_ref_to_tile_id(tile: TileRef) -> int:
         raise ValueError(
             f"Tile index must be >= 0, got {tile.index}."
         )
+
+    if tile.sheet_type == SheetType.A1:
+        return base + tile.index // A1_FRAME_STRIDE
 
     return base + tile.index
 
@@ -114,6 +127,14 @@ def tile_to_tile_id(tile: Tile) -> int:
         # + shape, ID = base + index (base = TILE_ID_A2 = 2816 /
         # TILE_ID_A3 = 4352 / TILE_ID_A4 = 5888).
         return SHEET_TILE_ID_BASE[sheet_type] + tile.ref.index
+
+    if sheet_type == SheetType.A1:
+        # The unfolded A1 stores
+        # index = (local_kind * 48 + shape) * A1_FRAME_STRIDE + frame
+        # (every animation frame is its own atlas tile), so the
+        # engine Tile ID (base = TILE_ID_A1 = 2048) resolves from the
+        # composition: ID = base + index // A1_FRAME_STRIDE.
+        return SHEET_TILE_ID_BASE[sheet_type] + tile.ref.index // A1_FRAME_STRIDE
 
     try:
         base = SHEET_TILE_ID_BASE[sheet_type]

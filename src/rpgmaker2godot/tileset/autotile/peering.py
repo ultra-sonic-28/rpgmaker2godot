@@ -108,6 +108,22 @@ WALL_SHAPE_CONNECTIONS: tuple[tuple[bool, ...], ...] = tuple(
 )
 
 
+# Per waterfall shape (A1 waterfalls, 4 shapes): the four sides, in
+# (left, top, right, bottom) order. The waterfall source block stores
+# the continuous-water variant in its two inner quarter columns and the
+# exposed-edge variants in its outer columns (verified against stock
+# sheets: the four composed shapes differ on their left/right halves
+# only) — waterfalls therefore connect left and right, never up or
+# down. Shape 0 keeps both sides, shape 1 exposes the left edge,
+# shape 2 the right edge, shape 3 is isolated.
+WATERFALL_SHAPE_CONNECTIONS: tuple[tuple[bool, ...], ...] = (
+    (True, False, True, False),    # 0: both sides connected
+    (False, False, True, False),   # 1: left edge exposed
+    (True, False, False, False),   # 2: right edge exposed
+    (False, False, False, False),  # 3: isolated
+)
+
+
 def floor_shape_peering(
     shape: int,
 ) -> tuple[tuple[str, bool], ...]:
@@ -142,10 +158,27 @@ def wall_shape_peering(
     )
 
 
+def waterfall_shape_peering(
+    shape: int,
+) -> tuple[tuple[str, bool], ...]:
+    """Return the ``(peering_bit_name, connected)`` pairs of a waterfall."""
+
+    left, top, right, bottom = WATERFALL_SHAPE_CONNECTIONS[shape % 4]
+
+    return (
+        ("right_side", right),
+        ("bottom_side", bottom),
+        ("left_side", left),
+        ("top_side", top),
+    )
+
+
 __all__ = [
     "FLOOR_SHAPE_CONNECTIONS",
     "PEERING_DIRECTIONS",
     "WALL_SHAPE_CONNECTIONS",
+    "WATERFALL_SHAPE_CONNECTIONS",
     "floor_shape_peering",
     "wall_shape_peering",
+    "waterfall_shape_peering",
 ]

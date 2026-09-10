@@ -594,7 +594,7 @@ def test_groups_a4_into_a_separate_autotile_tileset(
 ) -> None:
     """Merge mode splits a prefix into autotile and normal tilesets.
 
-    The autotile sheets (A1-A4; only A4 is handled today) stack into
+    The autotile sheets (A1-A4) stack into
     their own ``<prefix>_Autotile`` output, exported before the normal
     sheets (A5, B-E) which keep the plain ``<prefix>`` name — autotiles
     render beneath the other layers.

@@ -42,7 +42,7 @@ class Tile:
     TilePropertiesResolver is configured.
 
     ``quarters`` carries the unfolded autotile composition of the tile
-    (A2/A3/A4): a draw-ordered tuple of ``(qx, qy, dx, dy)`` — or
+    (A1/A2/A3/A4): a draw-ordered tuple of ``(qx, qy, dx, dy)`` — or
     ``(qx, qy, dx, dy, height)`` for the A2 table halves — pieces
     locating the 24px-wide source pieces inside the finished 48x48
     tile. The converter fills it so the atlas stage renders exactly the

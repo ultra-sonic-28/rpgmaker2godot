@@ -1,9 +1,14 @@
-"""Build Godot terrain sets from the unfolded A2/A3/A4 autotiles.
+"""Build Godot terrain sets from the unfolded A1/A2/A3/A4 autotiles.
 
-One terrain set is generated per material part, so painting a ground or
-a wall in the Godot editor reproduces RPG Maker's ``_addAutotile``
-behaviour:
+One terrain set is generated per material part, so painting a water, a
+ground or a wall in the Godot editor reproduces RPG Maker's
+``_addAutotile`` behaviour:
 
+* ``Water x`` (A1 animated waters and the static kinds 2-3) — mode
+  ``MATCH_CORNERS_AND_SIDES`` (the floor-table blob matching);
+* ``Waterfall x`` (A1 waterfalls) — mode ``MATCH_SIDES`` with
+  left/right peering bits only (the waterfall table matches the sides
+  of the fall, never its top or bottom);
 * ``Ground x`` (A2 grounds) — mode ``MATCH_CORNERS_AND_SIDES`` (the
   floor-table blob matching);
 * ``Roof x`` / ``Wall x`` (A3 buildings) — mode ``MATCH_SIDES`` (the
@@ -14,12 +19,13 @@ behaviour:
   matching).
 
 A terrain set carries a single matching mode, which is why the top and
-the side of one A4 wall material live in two sets. The A3 roof and wall
-rows always use the side matching. Materials are numbered continuously
-across the tileset's sheets (A2 grounds first, then A3 buildings, then
-A4 walls, following the atlas stacking order) and detected
-automatically from the source sheets' slots whose region is not fully
-transparent.
+the side of one A4 wall material live in two sets — and why the water
+and the waterfall of one A1 material do too (a waterfall kind pairs
+with the animated water on its left and shares its material number and
+colour). Materials are numbered continuously across the tileset's
+sheets (A1 waters first, then A2 grounds, then A3 buildings, then A4
+walls, following the atlas stacking order) and detected automatically
+from the source sheets' slots whose region is not fully transparent.
 """
 
 import colorsys
@@ -36,6 +42,12 @@ from rpgmaker2godot.godot.model import (
 )
 from rpgmaker2godot.model import SheetType
 from rpgmaker2godot.model.tileset import Tileset
+from rpgmaker2godot.tileset.autotile.a1 import (
+    A1_AUTOTILE_COUNT,
+    A1_FRAME_STRIDE,
+    A1_SHAPES_PER_AUTOTILE,
+    a1_kind_region,
+)
 from rpgmaker2godot.tileset.autotile.a2 import (
     A2_AUTOTILE_COUNT,
     A2_SHAPES_PER_AUTOTILE,
@@ -54,6 +66,7 @@ from rpgmaker2godot.tileset.autotile.a4 import (
 from rpgmaker2godot.tileset.autotile.peering import (
     floor_shape_peering,
     wall_shape_peering,
+    waterfall_shape_peering,
 )
 
 TERRAIN_MATCH_CORNERS_AND_SIDES = 0
@@ -79,7 +92,7 @@ A2_REGION_HEIGHT = 144
 class TerrainResolution:
     """Result of the terrain *resolution* phase.
 
-    The A2/A3/A4 source images have been scanned for drawn autotiles
+    The A1/A2/A3/A4 source images have been scanned for drawn autotiles
     and the matching terrain sets (their modes, names and material
     colours) are known. Attaching the terrains to the individual Godot
     atlas tiles is not part of this result: it only needs the Godot
@@ -103,12 +116,18 @@ class GodotTerrainBuilder:
         self,
         tileset: Tileset,
     ) -> TerrainResolution:
-        """Detect the drawn A2/A3/A4 autotiles and define their terrain sets.
+        """Detect the drawn A1/A2/A3/A4 autotiles and define their terrain sets.
 
         This is the resolution/definition phase: it only reads the
-        A2/A3/A4 source images, so it can run before the Godot tileset
+        A1/A2/A3/A4 source images, so it can run before the Godot tileset
         is built and be reported as its own CLI step.
         """
+
+        a1_sheets = [
+            sheet
+            for sheet in tileset.sheets
+            if sheet.sheet_type == SheetType.A1
+        ]
 
         a2_sheets = [
             sheet
@@ -128,8 +147,14 @@ class GodotTerrainBuilder:
             if sheet.sheet_type == SheetType.A4
         ]
 
-        if not a2_sheets and not a3_sheets and not a4_sheets:
+        if not a1_sheets and not a2_sheets and not a3_sheets and not a4_sheets:
             return TerrainResolution((), {})
+
+        if len(a1_sheets) > 1:
+            raise ValueError(
+                "Terrain generation supports exactly one A1 sheet "
+                "per tileset."
+            )
 
         if len(a2_sheets) > 1:
             raise ValueError(
@@ -148,6 +173,12 @@ class GodotTerrainBuilder:
                 "Terrain generation supports exactly one A4 sheet "
                 "per tileset."
             )
+
+        used_water_kinds = (
+            self._detect_used_a1_kinds(a1_sheets[0].source_path)
+            if a1_sheets
+            else set()
+        )
 
         used_ground_kinds = (
             self._detect_used_a2_kinds(a2_sheets[0].source_path)
@@ -168,6 +199,7 @@ class GodotTerrainBuilder:
         )
 
         terrain_sets, kind_assignment = self._build_sets(
+            used_water_kinds,
             used_ground_kinds,
             used_building_kinds,
             used_wall_kinds,
@@ -183,7 +215,7 @@ class GodotTerrainBuilder:
         godot_tileset: GodotTileSet,
         resolution: TerrainResolution,
     ) -> GodotTerrainPlan:
-        """Attach the resolved terrains to the Godot tileset's A2/A3/A4 cells."""
+        """Attach the resolved terrains to the Godot tileset's A1/A2/A3/A4 cells."""
 
         tile_terrains = self._assign_tiles(
             godot_tileset,
@@ -210,6 +242,41 @@ class GodotTerrainBuilder:
             godot_tileset,
             self.resolve(tileset),
         )
+
+    def _detect_used_a1_kinds(self, source_path) -> set[int]:
+        """Return the A1 kinds whose source region is drawn.
+
+        The region covers every animation frame of the kind (see
+        :func:`a1_kind_region`): 288x144 for the animated waters,
+        96x144 for the static waters and the waterfalls.
+        """
+
+        used: set[int] = set()
+
+        with Image.open(source_path) as raw:
+            source = raw.convert("RGBA")
+
+        try:
+            for kind in range(A1_AUTOTILE_COUNT):
+                source_x, source_y, width, height = a1_kind_region(kind)
+
+                region = source.crop(
+                    (
+                        source_x,
+                        source_y,
+                        source_x + width,
+                        source_y + height,
+                    )
+                )
+
+                if region.getchannel("A").getbbox() is not None:
+                    used.add(kind)
+
+                region.close()
+        finally:
+            source.close()
+
+        return used
 
     def _detect_used_a2_kinds(self, source_path) -> set[int]:
         """Return the A2 kinds whose source region is drawn."""
@@ -309,6 +376,7 @@ class GodotTerrainBuilder:
 
     @staticmethod
     def _build_sets(
+        used_water_kinds: set[int],
         used_ground_kinds: set[int],
         used_building_kinds: set[int],
         used_wall_kinds: set[int],
@@ -318,11 +386,11 @@ class GodotTerrainBuilder:
     ]:
         """Create one terrain set per used material part.
 
-        The A2 ground materials come first — they are stacked under the
-        A3 buildings and the A4 walls in the merged atlas — then the A3
-        building materials and the A4 wall materials. The ``material``
-        counter (and therefore the terrain colours) is shared by the
-        three families.
+        The A1 water materials come first — they are stacked under the
+        A2 grounds, the A3 buildings and the A4 walls in the merged
+        atlas — then the A2 ground materials, the A3 building materials
+        and the A4 wall materials. The ``material`` counter (and
+        therefore the terrain colours) is shared by the four families.
         """
 
         terrain_sets: list[GodotTerrainSet] = []
@@ -330,12 +398,89 @@ class GodotTerrainBuilder:
             SheetType,
             dict[int, tuple[int, bool]],
         ] = {
+            SheetType.A1: {},
             SheetType.A2: {},
             SheetType.A3: {},
             SheetType.A4: {},
         }
 
         material = 0
+
+        # A1 waters: the four standalone kinds (0-3) each get their own
+        # material, then every waterfall kind pairs with the animated
+        # water on its left (kinds 4+5, 6+7, ...) and shares its
+        # material number and colour.
+        for kind in range(4):
+            if kind not in used_water_kinds:
+                continue
+
+            material += 1
+            color = GodotTerrainBuilder._material_color(material)
+
+            kind_assignment[SheetType.A1][kind] = (
+                len(terrain_sets),
+                True,
+            )
+
+            terrain_sets.append(
+                GodotTerrainSet(
+                    mode=TERRAIN_MATCH_CORNERS_AND_SIDES,
+                    terrains=(
+                        GodotTerrain(
+                            name=f"Water {material}",
+                            color=color,
+                        ),
+                    ),
+                )
+            )
+
+        for water_kind in range(4, A1_AUTOTILE_COUNT, 2):
+            waterfall_kind = water_kind + 1
+
+            used_water = water_kind in used_water_kinds
+            used_waterfall = waterfall_kind in used_water_kinds
+
+            if not (used_water or used_waterfall):
+                continue
+
+            material += 1
+            color = GodotTerrainBuilder._material_color(material)
+
+            if used_water:
+                kind_assignment[SheetType.A1][water_kind] = (
+                    len(terrain_sets),
+                    True,
+                )
+
+                terrain_sets.append(
+                    GodotTerrainSet(
+                        mode=TERRAIN_MATCH_CORNERS_AND_SIDES,
+                        terrains=(
+                            GodotTerrain(
+                                name=f"Water {material}",
+                                color=color,
+                            ),
+                        ),
+                    )
+                )
+
+            if used_waterfall:
+                kind_assignment[SheetType.A1][waterfall_kind] = (
+                    len(terrain_sets),
+                    False,
+                )
+
+                terrain_sets.append(
+                    GodotTerrainSet(
+                        mode=TERRAIN_MATCH_SIDES,
+                        terrains=(
+                            GodotTerrain(
+                                name=f"Waterfall {material}",
+                                color=color,
+                            ),
+                        ),
+                    )
+                )
 
         # A2 grounds: one blob (floor-table) terrain set per kind.
         for kind in range(A2_AUTOTILE_COUNT):
@@ -484,24 +629,35 @@ class GodotTerrainBuilder:
         godot_tileset: GodotTileSet,
         kind_assignment: dict[SheetType, dict[int, tuple[int, bool]]],
     ) -> dict:
-        """Attach terrain data to every A2/A3/A4 tile of the Godot tileset."""
+        """Attach terrain data to every A1/A2/A3/A4 tile of the Godot tileset."""
 
         tile_terrains = {}
 
-        shapes_per_autotile = {
-            SheetType.A2: A2_SHAPES_PER_AUTOTILE,
-            SheetType.A3: A3_SHAPES_PER_AUTOTILE,
-            SheetType.A4: A4_SHAPES_PER_AUTOTILE,
-        }
-
         for source in godot_tileset.atlas_sources:
             for tile in source.tiles:
-                shapes = shapes_per_autotile.get(tile.ref.sheet_type)
+                if tile.ref.sheet_type == SheetType.A1:
+                    # A1 indexes encode
+                    # (kind * 48 + shape) * A1_FRAME_STRIDE + frame.
+                    composition = tile.ref.index // A1_FRAME_STRIDE
 
-                if shapes is None:
-                    continue
+                    kind, shape = divmod(
+                        composition,
+                        A1_SHAPES_PER_AUTOTILE,
+                    )
+                else:
+                    shapes_per_autotile = {
+                        SheetType.A2: A2_SHAPES_PER_AUTOTILE,
+                        SheetType.A3: A3_SHAPES_PER_AUTOTILE,
+                        SheetType.A4: A4_SHAPES_PER_AUTOTILE,
+                    }
 
-                kind, shape = divmod(tile.ref.index, shapes)
+                    shapes = shapes_per_autotile.get(tile.ref.sheet_type)
+
+                    if shapes is None:
+                        # Not an autotile sheet (A5, B-E): no terrain.
+                        continue
+
+                    kind, shape = divmod(tile.ref.index, shapes)
 
                 assignment = kind_assignment.get(tile.ref.sheet_type, {})
 
@@ -510,11 +666,21 @@ class GodotTerrainBuilder:
 
                 set_index, is_floor = assignment[kind]
 
-                peering = (
-                    floor_shape_peering(shape)
-                    if is_floor
-                    else wall_shape_peering(shape)
-                )
+                if tile.ref.sheet_type == SheetType.A1:
+                    # A1 waters compose from the floor table (blob
+                    # matching) and waterfalls from the waterfall
+                    # table (left/right side matching).
+                    peering = (
+                        floor_shape_peering(shape)
+                        if is_floor
+                        else waterfall_shape_peering(shape)
+                    )
+                else:
+                    peering = (
+                        floor_shape_peering(shape)
+                        if is_floor
+                        else wall_shape_peering(shape)
+                    )
 
                 peering_bits = tuple(
                     (name, 0)

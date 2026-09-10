@@ -91,3 +91,19 @@ WALL_AUTOTILE_TABLE: tuple[AutotileShape, ...] = (
     ((2, 0), (3, 2), (2, 3), (3, 3)),   # 14
     ((0, 0), (3, 2), (0, 3), (3, 3)),   # 15
 )
+
+
+# A1 waterfall: 4 shapes, verbatim from rmmz_core.js
+# (Tilemap.WATERFALL_AUTOTILE_TABLE). The waterfall source region is a
+# 96x48 block per animation frame (four quarter columns x two quarter
+# rows); the four shapes pick the inner columns (1-2: both sides
+# connected), the left half (0-1: left edge exposed), the right half
+# (2-3: right edge exposed) or both outer columns (isolated). RPG Maker
+# reserves 48 shape IDs per waterfall kind and cycles them over these
+# 4 shapes.
+WATERFALL_AUTOTILE_TABLE: tuple[AutotileShape, ...] = (
+    ((2, 0), (1, 0), (2, 1), (1, 1)),   # 0
+    ((0, 0), (1, 0), (0, 1), (1, 1)),   # 1
+    ((2, 0), (3, 0), (2, 1), (3, 1)),   # 2
+    ((0, 0), (3, 0), (0, 1), (3, 1)),   # 3
+)

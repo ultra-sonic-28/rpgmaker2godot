@@ -93,6 +93,15 @@ def write_validation_script(
         tuple[tuple[int, int], tuple[tuple[str, int], ...]],
         ...,
     ] | None = None,
+    expected_tile_animations: tuple[
+        tuple[
+            tuple[int, int],
+            int,
+            tuple[float, ...],
+            tuple[tuple[int, int], ...],
+        ],
+        ...,
+    ] | None = None,
 ) -> Path:
     script_path = project_directory / "validate.gd"
 
@@ -316,6 +325,79 @@ def write_validation_script(
 
     terrain_checks = ""
 
+    animation_checks = ""
+
+    if expected_tile_animations is not None:
+        for cell, frames_count, durations, missing_frames in (
+            expected_tile_animations
+        ):
+            column, row = cell
+
+            animation_checks += f"""
+    # -------------------------------------------------------------------------
+    # Validate the tile animation at ({column}, {row}).
+    # -------------------------------------------------------------------------
+    var animation_cell_{column}_{row} := Vector2i({column}, {row})
+
+    if not atlas_source.has_tile(animation_cell_{column}_{row}):
+        fail(
+            "Missing expected animated tile at %s"
+            % animation_cell_{column}_{row}
+        )
+        return
+
+    if (
+        atlas_source.get_tile_animation_frames_count(
+            animation_cell_{column}_{row}
+        )
+        != {frames_count}
+    ):
+        fail(
+            "Unexpected animation frames count at %s: %d"
+            % [
+                animation_cell_{column}_{row},
+                atlas_source.get_tile_animation_frames_count(
+                    animation_cell_{column}_{row}
+                ),
+            ]
+        )
+        return
+"""
+
+            for frame_index, duration in enumerate(durations):
+                animation_checks += f"""
+    if not is_equal_approx(
+        atlas_source.get_tile_animation_frame_duration(
+            animation_cell_{column}_{row},
+            {frame_index},
+        ),
+        {duration!r},
+    ):
+        fail(
+            "Unexpected animation frame duration at %s index {frame_index}: %f"
+            % [
+                animation_cell_{column}_{row},
+                atlas_source.get_tile_animation_frame_duration(
+                    animation_cell_{column}_{row},
+                    {frame_index},
+                ),
+            ]
+        )
+        return
+"""
+
+            for frame_cell in missing_frames:
+                frame_column, frame_row = frame_cell
+
+                animation_checks += f"""
+    if atlas_source.has_tile(Vector2i({frame_column}, {frame_row})):
+        fail(
+            "Unexpected tile in animation frame cell (%d, %d)"
+            % [{frame_column}, {frame_row}]
+        )
+        return
+"""
+
     if expected_terrain_set_count is not None:
         terrain_checks += f"""
     # -------------------------------------------------------------------------
@@ -527,6 +609,7 @@ func _initialize() -> void:
 {collision_free_checks}
 {tile_size_checks}
 {terrain_checks}
+{animation_checks}
     quit(0)
 """,
         encoding="utf-8",

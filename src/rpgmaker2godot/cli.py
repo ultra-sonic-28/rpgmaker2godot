@@ -145,7 +145,7 @@ def _print_terrain_resolution(
     set_count = len(resolution.terrain_sets)
 
     if set_count == 0:
-        print(f"  {tileset_name}: no terrain sets (no A2/A3/A4 autotiles)")
+        print(f"  {tileset_name}: no terrain sets (no A1/A2/A3/A4 autotiles)")
         return
 
     names = _join_terrain_names(
@@ -570,8 +570,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--simple",
         action="store_true",
-        help="Use the simple conversion mode (A2/A3/A4/A5/B/C/D/E).",
+        help="Use the simple conversion mode (A1/A2/A3/A4/A5/B/C/D/E).",
     )
+
 
     parser.add_argument(
         "--tileset",
@@ -603,7 +604,7 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         default=0,
         help=(
-            "Merge unfolded A2/A3/A4 autotile tiles whose pixel "
+            "Merge unfolded A1/A2/A3/A4 autotile tiles whose pixel "
             "difference is within N pixels, discarding source-image "
             "noise (default: 0, byte-exact match)."
         ),
@@ -613,11 +614,12 @@ def main(argv: list[str] | None = None) -> int:
         "--no-terrains",
         action="store_true",
         help=(
-            "Skip Godot terrain generation for the unfolded A2/A3/A4 "
+            "Skip Godot terrain generation for the unfolded A1/A2/A3/A4 "
             "autotiles (terrains power the automatic connection tool "
             "in the Godot editor)."
         ),
     )
+
 
     # Enable ANSI escape sequences on the legacy Windows console.
     os.system("")

@@ -1157,3 +1157,159 @@ def test_generated_a2_tileset_terrains_load_in_godot(
         f"STDOUT:\n{result.stdout}\n\n"
         f"STDERR:\n{result.stderr}"
     )
+
+
+@pytest.mark.integration
+def test_generated_a1_tileset_animations_load_in_godot(
+    tmp_path: Path,
+) -> None:
+    """The unfolded A1 tileset loads with its tile animations.
+
+    A single ``*_A1.png`` (768x576) sheet holds 16 water autotiles:
+    animated waters and waterfalls keep three animation frames packed
+    on consecutive atlas cells, static kinds a single frame. The
+    generated ``.tres`` must load in Godot with the animation
+    definitions attached to the base tiles (frames count + per-frame
+    durations) and the frame cells free of tiles.
+    """
+
+    godot = find_godot()
+
+    if godot is None:
+        pytest.skip(
+            "Godot executable not available. "
+            "Set the GODOT environment variable."
+        )
+
+    input_directory = tmp_path / "tilesets"
+    project_directory = tmp_path / "godot"
+    generated_directory = project_directory / "generated"
+
+    generated_directory.mkdir(parents=True, exist_ok=True)
+
+    # Distinct 24x24 quarters: the pixel-level deduplication keeps
+    # every composition, whose animation frames must load in Godot.
+    input_directory.mkdir(parents=True, exist_ok=True)
+
+    a1_path = input_directory / "Inside_A1.png"
+
+    a1_sheet = Image.new("RGBA", (768, 576))
+
+    for y in range(0, 576, 24):
+        for x in range(0, 768, 24):
+            qx, qy = x // 24, y // 24
+
+            a1_sheet.paste(
+                (
+                    (qx * 37) % 256,
+                    (qy * 61) % 256,
+                    (qx + qy * 3) % 256,
+                    255,
+                ),
+                (x, y, x + 24, y + 24),
+            )
+
+    a1_sheet.save(a1_path)
+    a1_sheet.close()
+
+    analysis = TilesetDetector().analyze(input_directory)
+
+    conversion = SimpleConverter().convert(analysis)
+
+    SimpleExporter(
+        godot_project_root=project_directory,
+    ).export(
+        conversion,
+        generated_directory,
+    )
+
+    write_project(project_directory)
+
+    # The A1 sheet alone forms the <prefix>_Autotile merged output.
+    generated_png = generated_directory / "Inside_Autotile.png"
+    assert generated_png.exists()
+    assert generated_png.stat().st_size > 0
+
+    generated_tres = generated_directory / "Inside_Autotile.tres"
+    assert generated_tres.exists()
+    assert generated_tres.stat().st_size > 0
+
+    # Locate the base tiles to validate in Godot from the conversion.
+    sheet = conversion.tilesets[0].sheets[0]
+
+    def cell_of(index: int) -> tuple[int, int]:
+        tile = next(
+            tile for tile in sheet.tiles if tile.ref.index == index
+        )
+
+        return tile.x // 48, tile.y // 48
+
+    water_cell = cell_of(0)
+    waterfall_cell = cell_of((5 * 48) * 3)
+    static_cell = cell_of((2 * 48) * 3)
+
+    def frame_cells(cell: tuple[int, int]) -> tuple[tuple[int, int], ...]:
+        return (
+            (cell[0] + 1, cell[1]),
+            (cell[0] + 2, cell[1]),
+        )
+
+    script_path = write_validation_script(
+        project_directory,
+        resource_path="res://generated/Inside_Autotile.tres",
+        expected_atlas_size=(sheet.width, sheet.height),
+        expected_columns=sheet.columns,
+        expected_rows=sheet.rows,
+        # The animation frame cells intentionally hold no tile.
+        validate_all_cells=False,
+        expected_tile_animations=(
+            (
+                water_cell,
+                3,
+                (0.5, 1.0, 0.5),
+                frame_cells(water_cell),
+            ),
+            (
+                waterfall_cell,
+                3,
+                (0.5, 0.5, 0.5),
+                frame_cells(waterfall_cell),
+            ),
+            # The static kind 2 has a single, non-animated frame.
+            (static_cell, 1, (), ()),
+        ),
+    )
+
+    subprocess.run(
+        [
+            godot,
+            "--headless",
+            "--path",
+            str(project_directory),
+            "--editor",
+            "--quit",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    result = subprocess.run(
+        [
+            godot,
+            "--headless",
+            "--path",
+            str(project_directory),
+            "--script",
+            str(script_path.name),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, (
+        "Godot failed to validate the A1 animations.\n\n"
+        f"STDOUT:\n{result.stdout}\n\n"
+        f"STDERR:\n{result.stderr}"
+    )

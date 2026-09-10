@@ -43,6 +43,7 @@ class GodotAtlasSourceBuilder:
                         if terrain_plan is not None
                         else None
                     ),
+                    animation=tile.animation,
                 )
             )
 

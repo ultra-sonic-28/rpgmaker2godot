@@ -1,19 +1,25 @@
+from collections.abc import Callable
+
 from rpgmaker2godot.atlas.models import Atlas, AtlasPlacement, AtlasQuarter
 from rpgmaker2godot.model import SheetType, Tileset
+from rpgmaker2godot.tileset.autotile.a1 import a1_quarters_from_index
 from rpgmaker2godot.tileset.autotile.a2 import a2_shape_quarters
 from rpgmaker2godot.tileset.autotile.a3 import a3_shape_quarters
 from rpgmaker2godot.tileset.autotile.a4 import a4_shape_quarters
-from rpgmaker2godot.tileset.autotile.composer import QUARTER_SIZE
+from rpgmaker2godot.tileset.autotile.composer import QUARTER_SIZE, Quarters
 
 # Per autotile sheet type, the engine-backed function returning the
 # source quarter pieces of one unfolded (kind, shape) tile. Only used
 # as a fallback: converter-produced tiles carry their own quarters
-# (needed for the flags-dependent A2 table rendering).
-_AUTOTILE_SHAPE_QUARTERS = {
+# (needed for the flags-dependent A2 table rendering). The A1 sheet is
+# not part of this map — its fallback decodes the animation frame out
+# of the TileRef index (see _autotile_placement).
+_AUTOTILE_SHAPE_QUARTERS: dict[SheetType, Callable[[int, int], Quarters]] = {
     SheetType.A2: a2_shape_quarters,
     SheetType.A3: a3_shape_quarters,
     SheetType.A4: a4_shape_quarters,
 }
+
 
 
 class AtlasBuilder:
@@ -65,7 +71,7 @@ class AtlasBuilder:
 
         for sheet in sheets:
             for tile in sheet.tiles:
-                if sheet.sheet_type in _AUTOTILE_SHAPE_QUARTERS:
+                if sheet.sheet_type.is_autotile:
                     placements.append(
                         self._autotile_placement(
                             sheet,
@@ -104,28 +110,37 @@ class AtlasBuilder:
         tile,
         offset_y: int,
     ) -> AtlasPlacement:
-        """Build the placement of one unfolded autotile tile (A2-A4).
+        """Build the placement of one unfolded autotile tile (A1-A4).
 
-        The tile's ``ref.index`` encodes ``local_kind * 48 + shape``
-        (matching RPG Maker's A2/A3/A4 Tile ID layout). The atlas
-        position comes from the tile's packed ``x``/``y`` (set by the
-        converter); the source pieces are the tile's stored
-        composition — or, for manually built tiles without one, the
-        engine shape table (which cannot know the flags-dependent A2
-        table rendering). Only distinct tiles reach this stage: the
-        converter already dropped the duplicated Wall Side shape IDs
-        and every graphically identical variant.
+        For A2/A3/A4 the tile's ``ref.index`` encodes
+        ``local_kind * 48 + shape`` (matching RPG Maker's Tile ID
+        layout); for A1 it encodes
+        ``(local_kind * 48 + shape) * 3 + frame`` (one atlas tile per
+        animation frame). The atlas position comes from the tile's
+        packed ``x``/``y`` (set by the converter); the source pieces
+        are the tile's stored composition — or, for manually built
+        tiles without one, the engine shape table (which cannot know
+        the flags-dependent A2 table rendering). Only distinct tiles
+        reach this stage: the converter already dropped the duplicated
+        Wall Side / Waterfall shape IDs and every graphically identical
+        variant.
         """
 
-        local_kind = tile.ref.index // 48
-        shape = tile.ref.index % 48
-
-        if tile.quarters is not None:
-            pieces = tile.quarters
+        if tile.ref.sheet_type == SheetType.A1:
+            if tile.quarters is not None:
+                pieces = tile.quarters
+            else:
+                pieces = a1_quarters_from_index(tile.ref.index)
         else:
-            shape_quarters = _AUTOTILE_SHAPE_QUARTERS[tile.ref.sheet_type]
+            local_kind = tile.ref.index // 48
+            shape = tile.ref.index % 48
 
-            pieces = shape_quarters(local_kind, shape)
+            if tile.quarters is not None:
+                pieces = tile.quarters
+            else:
+                shape_quarters = _AUTOTILE_SHAPE_QUARTERS[tile.ref.sheet_type]
+
+                pieces = shape_quarters(local_kind, shape)
 
         quarters = tuple(
             AtlasQuarter(

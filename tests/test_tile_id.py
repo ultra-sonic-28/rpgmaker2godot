@@ -95,15 +95,55 @@ def test_a2_tile_id() -> None:
     assert tile_to_tile_id(tile) == 2816 + 49
 
 
-def test_a2_a3_and_a4_flag_block_base() -> None:
-    """A2 sits at global Tile ID 2816, A3 at 4352 and A4 at 5888.
+def test_a1_tile_id() -> None:
+    """A1 Tile IDs are base + index // 3 (one tile per animation frame).
 
-    The A-series autotile regions are A1=2048, A2=2816, A3=4352,
-    A4=5888 (rmmz_core.js). The converter stores
-    ``index = local_kind * 48 + shape`` so the ID is simply
-    base + index, which stays inside the 8192-entry flags arrays.
+    The unfolded A1 stores
+    ``index = (local_kind * 48 + shape) * A1_FRAME_STRIDE + frame``
+    so the engine Tile ID (base = TILE_ID_A1 = 2048) resolves from the
+    composition: every frame of one composition shares the same ID.
     """
 
+    tile = Tile(
+        ref=make_tile_ref(
+            index=0,  # kind 0, shape 0, frame 0.
+            sheet_type=SheetType.A1,
+        ),
+        column=0,
+        row=0,
+        x=0,
+        y=0,
+        width=48,
+        height=48,
+    )
+
+    assert tile_to_tile_id(tile) == 2048
+
+    tile = Tile(
+        ref=make_tile_ref(
+            index=(5 * 48 + 1) * 3 + 2,  # kind 5, shape 1, frame 2.
+            sheet_type=SheetType.A1,
+        ),
+        column=0,
+        row=0,
+        x=0,
+        y=0,
+        width=48,
+        height=48,
+    )
+
+    assert tile_to_tile_id(tile) == 2048 + 241
+
+
+def test_a1_a2_a3_and_a4_flag_block_base() -> None:
+    """A1 sits at global Tile ID 2048, A2 2816, A3 4352, A4 5888.
+
+    The A-series autotile regions are A1=2048, A2=2816, A3=4352,
+    A4=5888 (rmmz_core.js), which stays inside the 8192-entry flags
+    arrays.
+    """
+
+    assert SHEET_TILE_ID_BASE[SheetType.A1] == 2048
     assert SHEET_TILE_ID_BASE[SheetType.A2] == 2816
     assert SHEET_TILE_ID_BASE[SheetType.A3] == 4352
     assert SHEET_TILE_ID_BASE[SheetType.A4] == 5888

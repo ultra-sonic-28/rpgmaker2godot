@@ -93,20 +93,25 @@ def compose_quarters(
     source: Image.Image,
     quarters: Quarters,
 ) -> Image.Image:
-    """Build one 48x48 tile from absolute quarter coordinates.
+    """Build one autotile image from absolute quarter coordinates.
 
     ``quarters`` is a draw-ordered tuple of ``(qx, qy, dx, dy)`` (or
     ``(qx, qy, dx, dy, height)``) pieces, as produced by
-    ``a2_shape_quarters`` / ``a3_shape_quarters`` / ``a4_shape_quarters``:
-    ``(qx, qy)`` locates the piece in ``source`` (absolute pixel
-    coordinates) and ``(dx, dy)`` places it inside the resulting tile.
-    A piece is 24px wide; its height is 24px (a full quarter) or, when
-    the fifth element is given, exactly that many pixels cropped from
-    the top of the quarter (12px halves, used by the A2 table
-    rendering).
+    ``a1_shape_quarters`` / ``a2_shape_quarters`` / ``a3_shape_quarters``
+    / ``a4_shape_quarters``: ``(qx, qy)`` locates the piece in
+    ``source`` (absolute pixel coordinates) and ``(dx, dy)`` places it
+    inside the resulting image. A piece is 24px wide; its height is
+    24px (a full quarter) or, when the fifth element is given, exactly
+    that many pixels cropped from the top of the quarter (12px halves,
+    used by the A2 table rendering).
+
+    The canvas width is derived from the pieces: the rightmost
+    destination plus one quarter — 48px for a single tile, 96/144px for
+    the multi-frame A1 animation strips (see
+    ``a1_composition_quarters``).
 
     Returns:
-        A new 48x48 RGBA image assembled from the quarter pieces.
+        A new 48px-tall RGBA image assembled from the quarter pieces.
     """
 
     if not quarters:
@@ -114,9 +119,11 @@ def compose_quarters(
             "An autotile tile must pick at least one quarter piece."
         )
 
+    canvas_width = max(piece[2] for piece in quarters) + QUARTER_SIZE
+
     tile = Image.new(
         "RGBA",
-        (TILE_SIZE, TILE_SIZE),
+        (canvas_width, TILE_SIZE),
         (0, 0, 0, 0),
     )
 

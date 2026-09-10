@@ -13,6 +13,36 @@ class GodotAtlasCell:
 
 
 @dataclass(frozen=True)
+class GodotTileAnimation:
+    """Animation definition of one atlas tile (Godot 4 tile animation).
+
+    Godot animates a tile through the consecutive atlas grid cells
+    right of its base cell (``animation_columns = 0``,
+    ``animation_separation = (0, 0)``): ``frames_count`` cells
+    including the base one, each shown for its duration in seconds,
+    scaled by ``speed``. The serializer writes
+    ``{col}:{row}/animation_frames_count`` and
+    ``{col}:{row}/animation_frame_{i}/duration``; ``speed`` stays at
+    its 1.0 default and is not written.
+    """
+
+    frames_count: int
+    durations: tuple[float, ...]
+    speed: float = 1.0
+
+    def __post_init__(self) -> None:
+        if self.frames_count < 1:
+            raise ValueError(
+                "Animation frames count must be >= 1."
+            )
+
+        if len(self.durations) != self.frames_count:
+            raise ValueError(
+                "One duration per animation frame is required."
+            )
+
+
+@dataclass(frozen=True)
 class GodotAtlasTile:
     ref: TileRef
 
@@ -30,6 +60,11 @@ class GodotAtlasTile:
     height: int
 
     collision: GodotTileCollision | None = None
+
+    # Tile animation (A1 animated waters and waterfalls); None until
+    # GodotTileSetBuilder resolves it from the TileRef.
+    animation: GodotTileAnimation | None = None
+
 
 
 @dataclass(frozen=True)
@@ -111,6 +146,9 @@ class GodotAtlasTileResource:
     collision: GodotTileCollision | None = None
 
     terrain: GodotTileTerrain | None = None
+
+    animation: GodotTileAnimation | None = None
+
 
     def __post_init__(self) -> None:
         if self.column < 0:

@@ -48,6 +48,21 @@ class GodotResourceSerializer:
                     f"Vector2i({tile.width}, {tile.height})"
                 )
 
+            if tile.animation is not None:
+                lines.append(
+                    f"{tile.column}:{tile.row}/animation_frames_count = "
+                    f"{tile.animation.frames_count}"
+                )
+
+                for frame_index, duration in enumerate(
+                    tile.animation.durations
+                ):
+                    lines.append(
+                        f"{tile.column}:{tile.row}/"
+                        f"animation_frame_{frame_index}/duration = "
+                        f"{_format_coordinate(duration)}"
+                    )
+
             lines.append(
                 f"{tile.column}:{tile.row}/0 = 0"
             )

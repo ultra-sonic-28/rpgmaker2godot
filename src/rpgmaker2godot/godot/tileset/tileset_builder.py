@@ -1,11 +1,18 @@
 from pathlib import Path
 
-from ..model import (
+from rpgmaker2godot.godot.model import (
     GodotAtlasCell,
     GodotAtlasMapping,
     GodotAtlasSource,
     GodotAtlasTile,
+    GodotTileAnimation,
     GodotTileSet,
+)
+from rpgmaker2godot.model import SheetType
+from rpgmaker2godot.tileset.autotile.a1 import (
+    A1_FRAME_STRIDE,
+    A1_SHAPES_PER_AUTOTILE,
+    a1_animation_durations,
 )
 
 
@@ -92,6 +99,14 @@ class GodotTileSetBuilder:
                     f"max_rows={max_row}"
                 )
 
+            animation = self._tile_animation(tile.ref)
+
+            if animation is None and self._is_animation_frame(tile.ref):
+                # The cell is occupied by an animation frame of the
+                # preceding base tile: Godot reserves those cells
+                # automatically, they must not be created as tiles.
+                continue
+
             tiles.append(
                 GodotAtlasTile(
                     ref=tile.ref,
@@ -106,6 +121,7 @@ class GodotTileSetBuilder:
                     width=tile.width,
                     height=tile.height,
                     collision=tile.collision,
+                    animation=animation,
                 )
             )
 
@@ -122,4 +138,40 @@ class GodotTileSetBuilder:
             tile_width=mapping.tile_width,
             tile_height=mapping.tile_height,
             atlas_sources=(source,),
+        )
+
+    @staticmethod
+    def _is_animation_frame(
+        ref,
+    ) -> bool:
+        """Return whether the TileRef is an A1 animation frame (frame > 0)."""
+
+        return ref.sheet_type == SheetType.A1 and ref.index % A1_FRAME_STRIDE != 0
+
+    @staticmethod
+    def _tile_animation(
+        ref,
+    ) -> GodotTileAnimation | None:
+        """Return the animation of an A1 base tile (frame 0), else None.
+
+        Animated waters and waterfalls cycle three frames with the
+        engine's per-frame durations; static kinds return None.
+        """
+
+        if ref.sheet_type != SheetType.A1:
+            return None
+
+        composition, frame = divmod(ref.index, A1_FRAME_STRIDE)
+
+        if frame != 0:
+            return None
+
+        durations = a1_animation_durations(composition // A1_SHAPES_PER_AUTOTILE)
+
+        if durations is None:
+            return None
+
+        return GodotTileAnimation(
+            frames_count=len(durations),
+            durations=durations,
         )

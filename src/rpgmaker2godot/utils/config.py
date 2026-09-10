@@ -1,6 +1,9 @@
 """Typed access to the ``rpgmaker2godot.yaml`` configuration.
 
-The configuration file stores independent sections:
+The configuration file is ``rpgmaker2godot.yaml`` in the working
+directory, unless the ``--config`` command-line option names another
+one (:func:`resolve_config_path` performs that lookup). It stores
+independent sections:
 
 * ``logger`` — opt-in file logging (read by
   :func:`rpgmaker2godot.utils.log.configure_logging`);
@@ -19,6 +22,10 @@ from pathlib import Path
 import yaml
 
 DEFAULT_CONFIG_FILENAME = "rpgmaker2godot.yaml"
+
+# Extension assumed when a configuration file is named without one,
+# mirroring how the --tileset option assumes .png.
+CONFIG_FILE_EXTENSION = ".yaml"
 
 
 @dataclass(frozen=True)
@@ -66,18 +73,46 @@ class AppConfig:
     character: CharacterConfig = CharacterConfig()
 
 
-def load_document(config_path: Path | None = None) -> dict:
+def resolve_config_path(
+    config: str | Path | None = None,
+) -> Path:
+    """Resolve the path of the configuration file to load.
+
+    ``None`` selects the default ``rpgmaker2godot.yaml`` in the
+    current working directory. Any other value names the file to
+    load; the ``.yaml`` extension is assumed when omitted (so
+    ``"prod"`` resolves to ``prod.yaml``), mirroring how the
+    ``--tileset`` option assumes ``.png``.
+
+    Args:
+        config: The ``--config`` value, an explicit path, or None.
+
+    Returns:
+        The path of the configuration file to read.
+    """
+
+    if config is None:
+        return Path.cwd() / DEFAULT_CONFIG_FILENAME
+
+    filename = str(config)
+
+    if not filename.lower().endswith(CONFIG_FILE_EXTENSION):
+        filename += CONFIG_FILE_EXTENSION
+
+    return Path(filename)
+
+
+def load_document(config_path: str | Path | None = None) -> dict:
     """Read the whole YAML document, or {} when missing or invalid."""
 
-    if config_path is None:
-        config_path = Path.cwd() / DEFAULT_CONFIG_FILENAME
+    resolved_path = resolve_config_path(config_path)
 
-    if not config_path.is_file():
+    if not resolved_path.is_file():
         return {}
 
     try:
         document = yaml.safe_load(
-            config_path.read_text(encoding="utf-8"),
+            resolved_path.read_text(encoding="utf-8"),
         )
     except (yaml.YAMLError, OSError):
         return {}
@@ -89,7 +124,7 @@ def load_document(config_path: Path | None = None) -> dict:
 
 
 def load_section(
-    config_path: Path | None,
+    config_path: str | Path | None,
     section: str,
 ) -> dict:
     """Read one top-level section, or {} when missing or malformed."""
@@ -103,8 +138,14 @@ def load_section(
     return value
 
 
-def load_app_config(config_path: Path | None = None) -> AppConfig:
-    """Load and validate the full configuration tree."""
+def load_app_config(config_path: str | Path | None = None) -> AppConfig:
+    """Load and validate the full configuration tree.
+
+    Args:
+        config_path: The ``--config`` value or an explicit path. When
+            omitted, the default ``rpgmaker2godot.yaml`` is looked up
+            in the current working directory.
+    """
 
     document = load_document(config_path)
 
@@ -228,6 +269,7 @@ def _as_godot_path(raw: object) -> str:
 
 
 __all__ = [
+    "CONFIG_FILE_EXTENSION",
     "DEFAULT_CONFIG_FILENAME",
     "AnimationConfig",
     "AppConfig",
@@ -237,4 +279,5 @@ __all__ = [
     "load_app_config",
     "load_document",
     "load_section",
+    "resolve_config_path",
 ]

@@ -4,9 +4,11 @@ import pytest
 import yaml
 
 from rpgmaker2godot.utils.config import (
+    DEFAULT_CONFIG_FILENAME,
     load_app_config,
     load_document,
     load_section,
+    resolve_config_path,
 )
 
 SAMPLE = {
@@ -154,3 +156,43 @@ def test_load_section_returns_one_section(tmp_path: Path) -> None:
     assert section["path"] == "entities/player/sprites"
 
     assert load_section(write_config(tmp_path, SAMPLE), "ghost") == {}
+
+
+def test_resolve_config_path_none_uses_the_working_directory() -> None:
+    assert (
+        resolve_config_path(None)
+        == Path.cwd() / DEFAULT_CONFIG_FILENAME
+    )
+
+
+def test_resolve_config_path_appends_the_yaml_extension() -> None:
+    resolved = resolve_config_path("custom")
+
+    assert resolved == Path("custom.yaml")
+
+
+def test_resolve_config_path_keeps_the_yaml_extension() -> None:
+    assert resolve_config_path("custom.yaml") == Path("custom.yaml")
+
+    # The check is case-insensitive: an explicit extension is kept
+    # exactly as given.
+    assert resolve_config_path("custom.YAML") == Path("custom.YAML")
+
+
+def test_resolve_config_path_keeps_subdirectories() -> None:
+    resolved = resolve_config_path("configs/prod")
+
+    assert resolved == Path("configs") / "prod.yaml"
+
+
+def test_load_app_config_accepts_a_name_without_extension() -> None:
+    # The conftest runs every test in a fresh working directory:
+    # dropping the custom file there mirrors a real run.
+    (Path.cwd() / "custom.yaml").write_text(
+        yaml.safe_dump({"tileset": {"path": "world/tilesets"}}),
+        encoding="utf-8",
+    )
+
+    config = load_app_config("custom")
+
+    assert config.tileset.path == "world/tilesets"

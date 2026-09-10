@@ -7,7 +7,7 @@ CLI tool written in Python 3.13+ to convert RPG Maker MV/MZ tilesets into Godot 
 ```
 rpgmaker2godot [-h] [--mode {TILESET,CHARACTER}] [--simple]
                [--tileset TILESET] [--no-merge] [--tolerance TOLERANCE]
-               [--no-terrains] input output
+               [--no-terrains] [--config CONFIG] input output
 ```
 
 Each option is described below with an example; `rpgmaker2godot --help`
@@ -112,6 +112,20 @@ the generated `.tres` then contains no `terrain_set_*` metadata.
 
 ```bash
 rpgmaker2godot --simple --no-terrains img/tilesets output
+```
+
+### `--config CONFIG`
+
+Loads the configuration from the `CONFIG` file instead of the default
+`rpgmaker2godot.yaml` looked up in the working directory. The `.yaml`
+extension is assumed when omitted, so `--config prod` loads `prod.yaml`
+(relative paths resolve against the working directory; absolute paths
+are accepted as-is). Every section of that file — `logger`, `tileset`,
+`character` — drives the whole run. When the file does not exist, a
+warning is displayed and nothing is converted.
+
+```bash
+rpgmaker2godot --simple --config prod img/tilesets output
 ```
 
 ### `-h`, `--help`
@@ -264,7 +278,9 @@ src/rpgmaker2godot/
 ### Configuration (`rpgmaker2godot.yaml`)
 
 A single `rpgmaker2godot.yaml` file, dropped into the working directory,
-configures the whole tool:
+configures the whole tool; the `--config` option (see
+[Command-line options](#command-line-options)) selects another file
+instead:
 
 ```yaml
 # Configuration for logging

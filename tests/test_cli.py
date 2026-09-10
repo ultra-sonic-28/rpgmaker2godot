@@ -607,7 +607,7 @@ def test_missing_arguments_show_banner_then_usage_panel(
 
     # The usage failure follows, rendered inside a warning frame.
     assert (
-        "usage: rpgmaker2godot [-h] [--mode {TILESET,CHARACTER}] [--simple] [--tileset TILESET] [--no-merge] [--tolerance TOLERANCE] [--no-terrains] input output"
+        "usage: rpgmaker2godot [-h] [--mode {TILESET,CHARACTER}] [--simple] [--tileset TILESET] [--no-merge] [--tolerance TOLERANCE] [--no-terrains] [--config CONFIG] input output"
         in output
     )
     assert (
@@ -1122,3 +1122,192 @@ def test_tileset_output_path_comes_from_the_configuration(
     )
 
     assert 'path="res://world/tilesets/Inside.png"' in content
+
+
+def test_config_option_defaults_to_yaml_extension(
+    tmp_path: Path,
+) -> None:
+    """--config custom loads custom.yaml (the extension is assumed)."""
+
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    create_sheet(
+        input_directory,
+        "Inside_A5.png",
+        color=(255, 0, 0, 255),
+    )
+
+    create_sheet(
+        input_directory,
+        "Inside_B.png",
+        color=(0, 255, 0, 255),
+    )
+
+    # The conftest runs every test in a fresh working directory:
+    # dropping the custom file there mirrors a real run.
+    (Path.cwd() / "custom.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "tileset": {
+                    "path": "world/tilesets",
+                },
+            },
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "--simple",
+            "--config",
+            "custom",
+            str(input_directory),
+            str(output_directory),
+        ]
+    )
+
+    assert exit_code == 0
+
+    content = (output_directory / "Inside.tres").read_text(
+        encoding="utf-8",
+    )
+
+    assert 'path="res://world/tilesets/Inside.png"' in content
+
+
+def test_config_option_accepts_the_yaml_extension(
+    tmp_path: Path,
+) -> None:
+    """--config custom.yaml loads custom.yaml exactly as named."""
+
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    create_sheet(
+        input_directory,
+        "Inside_A5.png",
+        color=(255, 0, 0, 255),
+    )
+
+    create_sheet(
+        input_directory,
+        "Inside_B.png",
+        color=(0, 255, 0, 255),
+    )
+
+    (Path.cwd() / "custom.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "tileset": {
+                    "path": "world/tilesets",
+                },
+            },
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "--simple",
+            "--config",
+            "custom.yaml",
+            str(input_directory),
+            str(output_directory),
+        ]
+    )
+
+    assert exit_code == 0
+
+    content = (output_directory / "Inside.tres").read_text(
+        encoding="utf-8",
+    )
+
+    assert 'path="res://world/tilesets/Inside.png"' in content
+
+
+def test_missing_config_file_displays_warning(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    """--config ghost warns and converts nothing (exit code 2)."""
+
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    create_sheet(
+        input_directory,
+        "Inside_B.png",
+    )
+
+    exit_code = main(
+        [
+            "--simple",
+            "--config",
+            "ghost",
+            str(input_directory),
+            str(output_directory),
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+
+    # The warning is rendered in the same warning panel as usage
+    # failures; panels wrap long lines, so flatten the output.
+    output = flatten(captured.out.replace("│", " "))
+
+    assert "Configuration file 'ghost.yaml' not found" in output
+    assert "--config ghost" in output
+
+    # The message sits inside a warning panel frame.
+    assert "┌" in captured.out
+    assert "└" in captured.out
+
+    # No output was generated for the missing configuration file.
+    assert not output_directory.exists()
+
+
+def test_config_option_applies_the_logger_section(
+    tmp_path: Path,
+) -> None:
+    """The logger section of the --config file activates file logging."""
+
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    create_sheet(
+        input_directory,
+        "Inside_B.png",
+    )
+
+    (Path.cwd() / "logged.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "logger": {
+                    "enabled": True,
+                    "level": "DEBUG",
+                    "file": "custom-run.log",
+                    "mode": "OVERWRITE",
+                },
+            },
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "--simple",
+            "--config",
+            "logged",
+            str(input_directory),
+            str(output_directory),
+        ]
+    )
+
+    assert exit_code == 0
+
+    # The logger section of the named file replaced the default
+    # rpgmaker2godot.yaml lookup: the records go to the file it sets.
+    assert (Path.cwd() / "custom-run.log").is_file()

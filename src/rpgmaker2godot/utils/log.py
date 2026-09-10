@@ -5,7 +5,8 @@ whole pipeline stays silent, and activated records are written to
 the configured file — never to the console.
 
 Drop a ``rpgmaker2godot.yaml`` file in the working directory (or
-pass an explicit path to :func:`configure_logging`) to activate:
+name another one with the ``--config`` CLI option, or pass an
+explicit path to :func:`configure_logging`) to activate:
 
 .. code-block:: yaml
 
@@ -29,10 +30,9 @@ The settings live in the ``logger`` section:
 import logging
 from pathlib import Path
 
-from .config import DEFAULT_CONFIG_FILENAME, load_section
+from .config import load_section, resolve_config_path
 
 _LOGGER_ROOT = "rpgmaker2godot"
-_DEFAULT_CONFIG_FILENAME = DEFAULT_CONFIG_FILENAME
 
 # Top-level YAML section holding the settings.
 _CONFIG_SECTION = "logger"
@@ -60,7 +60,7 @@ def get_logger(
 
 
 def configure_logging(
-    config_path: Path | None = None,
+    config_path: str | Path | None = None,
 ) -> bool:
     """Configure every rpgmaker2godot logger from a YAML file.
 
@@ -74,20 +74,19 @@ def configure_logging(
     Args:
         config_path: Explicit path to the configuration file. When
             omitted, ``rpgmaker2godot.yaml`` is looked up in the
-            current working directory.
+            current working directory; the ``.yaml`` extension is
+            assumed when the value omits it (e.g. ``"prod"`` loads
+            ``prod.yaml``).
 
     Returns:
         Whether logging got activated.
     """
 
-    if config_path is None:
-        config_path = Path.cwd() / _DEFAULT_CONFIG_FILENAME
-
     root = logging.getLogger(_LOGGER_ROOT)
 
     _remove_handlers(root)
 
-    settings = _load_settings(config_path)
+    settings = _load_settings(resolve_config_path(config_path))
 
     if not settings.get("enabled", False):
         root.setLevel(_SILENT_LEVEL)

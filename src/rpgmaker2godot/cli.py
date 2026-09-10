@@ -22,7 +22,7 @@ from .godot.terrain.terrain_builder import (
 )
 from .tileset.reader import TilesetsJsonReader
 from .tileset.resolver import TilePropertiesResolver
-from .utils.config import AppConfig, load_app_config
+from .utils.config import AppConfig, load_app_config, resolve_config_path
 from .utils.log import configure_logging
 from .utils.messages import display_program_banner, display_warning
 
@@ -620,13 +620,21 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
 
+    parser.add_argument(
+        "--config",
+        metavar="CONFIG",
+        default=None,
+        help=(
+            "Load the configuration from this YAML file instead of the "
+            "default rpgmaker2godot.yaml looked up in the working "
+            "directory (the .yaml extension is assumed when omitted, "
+            "so --config prod loads prod.yaml). Every section of the "
+            "file (logger, tileset, character) drives the run."
+        ),
+    )
 
     # Enable ANSI escape sequences on the legacy Windows console.
     os.system("")
-
-    # Opt-in logging, activated by a rpgmaker2godot.yaml file in
-    # the working directory.
-    configure_logging()
 
     display_program_banner()
 
@@ -638,6 +646,28 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         return 2
+
+    config_path = resolve_config_path(args.config)
+
+    # An explicitly named configuration file must exist: silently
+    # falling back to the defaults would only hide a typo.
+    if args.config is not None and not config_path.is_file():
+        display_warning(
+            _format_usage_error(
+                parser,
+                (
+                    f"Configuration file '{config_path}' not found "
+                    f"(--config {args.config})."
+                ),
+            ),
+        )
+
+        return 2
+
+    # Opt-in logging, activated by the configuration file: the
+    # default rpgmaker2godot.yaml in the working directory, or the
+    # file named by --config.
+    configure_logging(config_path)
 
     character_mode = args.mode == "CHARACTER"
 
@@ -675,7 +705,7 @@ def main(argv: list[str] | None = None) -> int:
 
             return 2
 
-    app_config = load_app_config()
+    app_config = load_app_config(config_path)
 
     try:
         if character_mode:

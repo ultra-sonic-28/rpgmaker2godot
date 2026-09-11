@@ -31,6 +31,7 @@ from .utils.config import (
 )
 from .utils.log import configure_logging
 from .utils.messages import (
+    display_error,
     display_info,
     display_program_banner,
     display_warning,
@@ -43,7 +44,6 @@ _RESET = "\x1b[0m"
 
 _STEP_STYLE = "97;44"           # white on blue
 _WARNING_STYLE = "97;48;5;208"  # white on orange (256-color)
-_ERROR_STYLE = "97;41"          # white on red
 _SUCCESS_STYLE = "97;42"        # white on green
 
 
@@ -753,10 +753,7 @@ def main(argv: list[str] | None = None) -> int:
         ValueError,
         IndexError,
     ) as error:
-        print(
-            _paint(f"Error: {error}", _ERROR_STYLE, sys.stderr),
-            file=sys.stderr,
-        )
+        display_error(f"Error: {error}")
 
         return 1
 

@@ -1,6 +1,7 @@
 import re
 
 from rpgmaker2godot.utils.messages import (
+    display_error,
     display_info,
     display_program_banner,
     display_title,
@@ -104,3 +105,32 @@ def test_display_info_escapes_square_brackets(capsys) -> None:
     # The brackets survive literally instead of being swallowed as
     # rich markup tags.
     assert "[not markup]" in captured.out
+
+
+def test_display_error_renders_message_inside_a_panel(capsys) -> None:
+    display_error("Error: No supported RPG Maker MV/MZ sheets found")
+
+    captured = capsys.readouterr()
+
+    # Runtime errors go to the standard error stream.
+    assert (
+        "Error: No supported RPG Maker MV/MZ sheets found"
+        in captured.err
+    )
+    assert "Error: No supported RPG Maker MV/MZ sheets found" not in (
+        captured.out
+    )
+
+    # Panel border characters are present.
+    assert "┌" in captured.err
+    assert "└" in captured.err
+
+
+def test_display_error_escapes_square_brackets(capsys) -> None:
+    display_error("[not markup]")
+
+    captured = capsys.readouterr()
+
+    # The brackets survive literally instead of being swallowed as
+    # rich markup tags.
+    assert "[not markup]" in captured.err

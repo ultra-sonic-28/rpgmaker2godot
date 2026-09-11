@@ -432,6 +432,10 @@ def test_simple_cli_reports_missing_input_directory(
 
     assert "does not exist" in captured.err
 
+    # The error is rendered inside an error panel.
+    assert "┌" in captured.err
+    assert "└" in captured.err
+
 
 def test_simple_cli_reports_empty_input_directory(
     tmp_path: Path,
@@ -457,6 +461,10 @@ def test_simple_cli_reports_empty_input_directory(
     captured = capsys.readouterr()
 
     assert "No supported RPG Maker MV/MZ sheets found" in captured.err
+
+    # The error is rendered inside an error panel.
+    assert "┌" in captured.err
+    assert "└" in captured.err
 
 
 def test_simple_cli_paints_output_when_colors_forced(

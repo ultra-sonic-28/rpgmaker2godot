@@ -274,6 +274,10 @@ def test_character_mode_without_character_sheet_fails(
     assert "No character spritesheets found" in captured.err
     assert not output_directory.exists()
 
+    # The error is rendered inside an error panel.
+    assert "┌" in captured.err
+    assert "└" in captured.err
+
 
 def test_default_mode_is_tileset(tmp_path: Path, capsys) -> None:
     """Without --mode CHARACTER, the tileset pipeline is used."""

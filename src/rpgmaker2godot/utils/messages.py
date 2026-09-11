@@ -1,5 +1,6 @@
 """User-facing console messages for the CLI."""
 
+import sys
 from importlib.metadata import PackageNotFoundError, metadata
 
 from rich.console import Console
@@ -86,6 +87,34 @@ def display_warning(
         escape(message),
         style="bright_white on #ff8700",
         border_style="#ff8700",
+        expand=True,
+    )
+
+    console.print("")
+    console.print(title)
+    console.print("")
+
+
+def display_error(
+    message: str,
+) -> None:
+    """Display a runtime error inside an error-colored panel.
+
+    Bright white text on a red background with a matching border —
+    the same highlight color the CLI uses for fatal errors. Unlike
+    the other panels the message is printed on the standard error
+    stream, so redirecting stdout keeps capturing it.
+
+    The message is plain text: it is escaped so that square brackets
+    are never interpreted as rich markup tags.
+    """
+
+    console = Console(file=sys.stderr)
+
+    title = Panel(
+        escape(message),
+        style="bright_white on red",
+        border_style="red",
         expand=True,
     )
 

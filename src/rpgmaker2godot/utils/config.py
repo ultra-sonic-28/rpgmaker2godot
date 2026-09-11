@@ -7,6 +7,9 @@ independent sections:
 
 * ``logger`` — opt-in file logging (read by
   :func:`rpgmaker2godot.utils.log.configure_logging`);
+* ``converter`` — the mandatory input (RPG Maker tilesheets) and
+  output (generated Godot resources) directories of the conversion;
+  their absence is reported by the CLI before any conversion;
 * ``tileset`` — the Godot output directory (relative to ``res://``)
   in which the tileset atlases referenced by the generated ``.tres``
   live;
@@ -22,6 +25,11 @@ from pathlib import Path
 import yaml
 
 DEFAULT_CONFIG_FILENAME = "rpgmaker2godot.yaml"
+
+# Defaults of the converter.path section, used when the entry exists
+# but holds no usable value.
+DEFAULT_INPUT_DIRECTORY = "./input"
+DEFAULT_OUTPUT_DIRECTORY = "./output"
 
 # Extension assumed when a configuration file is named without one,
 # mirroring how the --tileset option assumes .png.
@@ -48,6 +56,21 @@ class CharacterConfig:
 
 
 @dataclass(frozen=True)
+class ConverterPathConfig:
+    """Converter paths: the RPG Maker input and Godot output directories."""
+
+    input: str = DEFAULT_INPUT_DIRECTORY
+    output: str = DEFAULT_OUTPUT_DIRECTORY
+
+
+@dataclass(frozen=True)
+class ConverterConfig:
+    """Converter section: input/output path configuration."""
+
+    path: ConverterPathConfig = ConverterPathConfig()
+
+
+@dataclass(frozen=True)
 class TilesetConfig:
     """Tileset section: Godot output directory (relative to res://)."""
 
@@ -69,6 +92,7 @@ class AppConfig:
     """The full typed configuration."""
 
     logger: LoggerConfig = LoggerConfig()
+    converter: ConverterConfig = ConverterConfig()
     tileset: TilesetConfig = TilesetConfig()
     character: CharacterConfig = CharacterConfig()
 
@@ -102,23 +126,58 @@ def resolve_config_path(
     return Path(filename)
 
 
-def load_document(config_path: str | Path | None = None) -> dict:
-    """Read the whole YAML document, or {} when missing or invalid."""
+def read_yaml_document(
+    config_path: str | Path | None = None,
+) -> tuple[dict, str | None]:
+    """Read the whole YAML document, reporting parse failures.
+
+    Args:
+        config_path: The ``--config`` value or an explicit path. When
+            omitted, the default ``rpgmaker2godot.yaml`` is looked up
+            in the current working directory.
+
+    Returns:
+        A ``(document, error)`` pair. ``document`` is ``{}`` when the
+        file is missing or empty; ``error`` is ``None`` on success and
+        a human-readable message otherwise. A missing file is not an
+        error: the caller falls back to the defaults (an explicitly
+        named file has already been checked for existence upstream).
+    """
 
     resolved_path = resolve_config_path(config_path)
 
     if not resolved_path.is_file():
-        return {}
+        return {}, None
+
+    # utf-8-sig transparently drops a leading BOM: editors such as
+    # Notepad write one by default on Windows, and it would otherwise
+    # break the YAML scan.
+    try:
+        raw_text = resolved_path.read_text(encoding="utf-8-sig")
+    except OSError as error:
+        return {}, f"the file cannot be read ({error})"
 
     try:
-        document = yaml.safe_load(
-            resolved_path.read_text(encoding="utf-8"),
-        )
-    except (yaml.YAMLError, OSError):
-        return {}
+        document = yaml.safe_load(raw_text)
+    except yaml.YAMLError as error:
+        message = str(error).strip()
+
+        return {}, message or "invalid YAML syntax"
+
+    if document is None:
+        # An empty (or comments-only) file: no section at all.
+        return {}, None
 
     if not isinstance(document, dict):
-        return {}
+        return {}, "the document must be a YAML mapping of sections"
+
+    return document, None
+
+
+def load_document(config_path: str | Path | None = None) -> dict:
+    """Read the whole YAML document, or {} when missing or invalid."""
+
+    document, _ = read_yaml_document(config_path)
 
     return document
 
@@ -151,8 +210,60 @@ def load_app_config(config_path: str | Path | None = None) -> AppConfig:
 
     return AppConfig(
         logger=_build_logger(document.get("logger")),
+        converter=_build_converter(document.get("converter")),
         tileset=_build_tileset(document.get("tileset")),
         character=_build_character(document.get("character")),
+    )
+
+
+def missing_converter_paths(
+    config_path: str | Path | None = None,
+) -> list[str]:
+    """Report the mandatory converter.path entries missing from the file.
+
+    The ``converter.path.input`` and ``converter.path.output`` entries
+    are required: the CLI refuses to start the detection/analysis
+    pipeline when either is absent.
+
+    Returns:
+        The dotted names of the missing entries, in declaration
+        order (``input`` first) — an empty list when both are set.
+    """
+
+    path = load_section(config_path, "converter").get("path")
+
+    if not isinstance(path, dict):
+        path = {}
+
+    return [
+        key
+        for key in ("input", "output")
+        if key not in path
+    ]
+
+
+def _build_converter(raw: object) -> ConverterConfig:
+    if not isinstance(raw, dict):
+        return ConverterConfig()
+
+    path = raw.get("path")
+
+    if not isinstance(path, dict):
+        return ConverterConfig()
+
+    return ConverterConfig(
+        path=ConverterPathConfig(
+            input=_as_str(
+                path,
+                "input",
+                DEFAULT_INPUT_DIRECTORY,
+            ),
+            output=_as_str(
+                path,
+                "output",
+                DEFAULT_OUTPUT_DIRECTORY,
+            ),
+        ),
     )
 
 
@@ -271,13 +382,19 @@ def _as_godot_path(raw: object) -> str:
 __all__ = [
     "CONFIG_FILE_EXTENSION",
     "DEFAULT_CONFIG_FILENAME",
+    "DEFAULT_INPUT_DIRECTORY",
+    "DEFAULT_OUTPUT_DIRECTORY",
     "AnimationConfig",
     "AppConfig",
     "CharacterConfig",
+    "ConverterConfig",
+    "ConverterPathConfig",
     "LoggerConfig",
     "TilesetConfig",
     "load_app_config",
     "load_document",
     "load_section",
+    "missing_converter_paths",
+    "read_yaml_document",
     "resolve_config_path",
 ]

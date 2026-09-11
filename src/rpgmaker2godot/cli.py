@@ -22,9 +22,19 @@ from .godot.terrain.terrain_builder import (
 )
 from .tileset.reader import TilesetsJsonReader
 from .tileset.resolver import TilePropertiesResolver
-from .utils.config import AppConfig, load_app_config, resolve_config_path
+from .utils.config import (
+    AppConfig,
+    load_app_config,
+    missing_converter_paths,
+    read_yaml_document,
+    resolve_config_path,
+)
 from .utils.log import configure_logging
-from .utils.messages import display_program_banner, display_warning
+from .utils.messages import (
+    display_info,
+    display_program_banner,
+    display_warning,
+)
 
 TILESET_TOTAL_STEPS = 5
 CHARACTER_TOTAL_STEPS = 3
@@ -281,8 +291,11 @@ def _run_character_mode(
 ) -> int:
     """Convert every character spritesheet of the input directory."""
 
+    input_path = Path(config.converter.path.input)
+    output_path = Path(config.converter.path.output)
+
     detector = CharacterDetector()
-    result = detector.analyze(args.input)
+    result = detector.analyze(input_path)
 
     _print_step(
         1,
@@ -337,7 +350,7 @@ def _run_character_mode(
     )
     generated = exporter.export(
         conversion,
-        args.output,
+        output_path,
     )
 
     for sheet in conversion.sheets:
@@ -369,8 +382,11 @@ def _run_tileset_mode(
 ) -> int:
     """Convert every (or the selected) tileset of the input directory."""
 
+    input_path = Path(config.converter.path.input)
+    output_path = Path(config.converter.path.output)
+
     detector = TilesetDetector()
-    result = detector.analyze(args.input)
+    result = detector.analyze(input_path)
 
     if args.tileset is not None:
         result, warning = _select_tileset(
@@ -420,7 +436,7 @@ def _run_tileset_mode(
 
     _print_step(2, "Resolving collision flags", TILESET_TOTAL_STEPS)
 
-    tilesets_json_path = args.input / "Tilesets.json"
+    tilesets_json_path = input_path / "Tilesets.json"
 
     if tilesets_json_path.is_file():
         tileset_flags = TilesetsJsonReader().read_flags(
@@ -498,12 +514,12 @@ def _run_tileset_mode(
 
     generated = exporter.export(
         conversion,
-        args.output,
+        output_path,
         terrain_resolutions=terrain_plans or None,
     )
 
     for tileset in conversion.tilesets:
-        atlas_path = args.output / f"{tileset.name}.png"
+        atlas_path = output_path / f"{tileset.name}.png"
 
         with Image.open(atlas_path) as image:
             width, height = image.size
@@ -542,18 +558,6 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     parser.add_argument(
-        "input",
-        type=Path,
-        help="Input directory containing the files to convert.",
-    )
-
-    parser.add_argument(
-        "output",
-        type=Path,
-        help="Output directory.",
-    )
-
-    parser.add_argument(
         "--mode",
         type=str.upper,
         choices=("TILESET", "CHARACTER"),
@@ -566,13 +570,6 @@ def main(argv: list[str] | None = None) -> int:
             "SpriteFrames resources."
         ),
     )
-
-    parser.add_argument(
-        "--simple",
-        action="store_true",
-        help="Use the simple conversion mode (A1/A2/A3/A4/A5/B/C/D/E).",
-    )
-
 
     parser.add_argument(
         "--tileset",
@@ -629,7 +626,9 @@ def main(argv: list[str] | None = None) -> int:
             "default rpgmaker2godot.yaml looked up in the working "
             "directory (the .yaml extension is assumed when omitted, "
             "so --config prod loads prod.yaml). Every section of the "
-            "file (logger, tileset, character) drives the run."
+            "file (converter, logger, tileset, character) drives the "
+            "run. The converter.path.input and converter.path.output "
+            "entries are mandatory."
         ),
     )
 
@@ -649,6 +648,20 @@ def main(argv: list[str] | None = None) -> int:
 
     config_path = resolve_config_path(args.config)
 
+    # Tell the user which configuration file drives this run: the
+    # default rpgmaker2godot.yaml looked up in the working directory,
+    # or the file explicitly named with --config.
+    if args.config is not None:
+        display_info(
+            f"Configuration file: {config_path} (--config {args.config})",
+        )
+
+    else:
+        display_info(
+            f"Configuration file: {config_path} (default lookup in the "
+            f"working directory)",
+        )
+
     # An explicitly named configuration file must exist: silently
     # falling back to the defaults would only hide a typo.
     if args.config is not None and not config_path.is_file():
@@ -664,6 +677,25 @@ def main(argv: list[str] | None = None) -> int:
 
         return 2
 
+    # A configuration file that exists but cannot be parsed (invalid
+    # YAML syntax, a scalar at the root...) must be reported instead
+    # of being silently treated as empty: the user would otherwise see
+    # misleading complaints about missing sections.
+    _, config_parse_error = read_yaml_document(args.config)
+
+    if config_parse_error is not None:
+        display_warning(
+            _format_usage_error(
+                parser,
+                (
+                    f"Configuration file '{config_path}' is invalid: "
+                    f"{config_parse_error}"
+                ),
+            ),
+        )
+
+        return 2
+
     # Opt-in logging, activated by the configuration file: the
     # default rpgmaker2godot.yaml in the working directory, or the
     # file named by --config.
@@ -672,29 +704,9 @@ def main(argv: list[str] | None = None) -> int:
     character_mode = args.mode == "CHARACTER"
 
     if character_mode:
-        if args.simple:
-            display_warning(
-                _format_usage_error(
-                    parser,
-                    "--simple applies to tileset conversion only.",
-                ),
-            )
-
-            return 2
-
         _warn_ignored_tileset_options(args)
 
     else:
-        if not args.simple:
-            display_warning(
-                _format_usage_error(
-                    parser,
-                    "Only --simple mode is currently supported.",
-                ),
-            )
-
-            return 2
-
         if args.tolerance < 0:
             display_warning(
                 _format_usage_error(
@@ -704,6 +716,28 @@ def main(argv: list[str] | None = None) -> int:
             )
 
             return 2
+
+    # The converter.path.input and converter.path.output entries are
+    # mandatory: their presence is checked before the detection and
+    # analysis pipeline starts. A missing entry is reported through a
+    # usage-style warning and nothing is converted.
+    missing_paths = missing_converter_paths(args.config)
+
+    if missing_paths:
+        missing_list = ", ".join(missing_paths)
+
+        display_warning(
+            _format_usage_error(
+                parser,
+                (
+                    f"Missing required configuration entries in "
+                    f"'{config_path}': {missing_list} "
+                    f"(converter.path section)."
+                ),
+            ),
+        )
+
+        return 2
 
     app_config = load_app_config(config_path)
 

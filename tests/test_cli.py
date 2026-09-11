@@ -6,7 +6,10 @@ import yaml
 from PIL import Image
 
 from rpgmaker2godot.cli import main
-from tests.helpers import PROGRAM_BANNER_VERSION
+from tests.helpers import (
+    PROGRAM_BANNER_VERSION,
+    write_converter_config,
+)
 
 
 def create_sheet(
@@ -77,11 +80,13 @@ def test_simple_cli_exports_tileset(
         color=(0, 0, 255, 255),
     )
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
-            "--simple",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -142,11 +147,13 @@ def test_simple_cli_merge_exports_autotile_and_normal_outputs(
         color=(0, 255, 0, 255),
     )
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
-            "--simple",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -189,12 +196,14 @@ def test_simple_cli_exports_tileset_no_terrains(
         color=(0, 0, 255, 255),
     )
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
-            "--simple",
             "--no-terrains",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -249,12 +258,14 @@ def test_simple_cli_no_merge_exports_one_file_per_sheet(
             color=color,
         )
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
-            "--simple",
             "--no-merge",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -314,12 +325,14 @@ def test_simple_cli_no_merge_resolves_collision_from_tilesets_json(
         encoding="utf-8",
     )
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
-            "--simple",
             "--no-merge",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -371,11 +384,13 @@ def test_simple_cli_exports_multiple_tilesets(
                 color=color,
             )
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
-            "--simple",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -401,11 +416,13 @@ def test_simple_cli_reports_missing_input_directory(
     input_directory = tmp_path / "does-not-exist"
     output_directory = tmp_path / "output"
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
-            "--simple",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -425,11 +442,13 @@ def test_simple_cli_reports_empty_input_directory(
 
     input_directory.mkdir()
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
-            "--simple",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -456,11 +475,13 @@ def test_simple_cli_paints_output_when_colors_forced(
 
     monkeypatch.setenv("FORCE_COLOR", "1")
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
-            "--simple",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -494,11 +515,13 @@ def test_simple_cli_never_paints_when_no_color_is_set(
     monkeypatch.setenv("NO_COLOR", "1")
     monkeypatch.setenv("FORCE_COLOR", "1")
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
-            "--simple",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -527,11 +550,13 @@ def test_simple_cli_resolves_collision_from_tilesets_json(
 
     create_tilesets_json(input_directory)
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
-            "--simple",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -563,11 +588,13 @@ def test_simple_cli_without_tilesets_json_stays_collision_free(
         color=(0, 255, 0, 255),
     )
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
-            "--simple",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -607,13 +634,14 @@ def test_missing_arguments_show_banner_then_usage_panel(
 
     # The usage failure follows, rendered inside a warning frame.
     assert (
-        "usage: rpgmaker2godot [-h] [--mode {TILESET,CHARACTER}] [--simple] [--tileset TILESET] [--no-merge] [--tolerance TOLERANCE] [--no-terrains] [--config CONFIG] input output"
+        "usage: rpgmaker2godot [-h] [--mode {TILESET,CHARACTER}] [--tileset TILESET] [--no-merge] [--tolerance TOLERANCE] [--no-terrains] [--config CONFIG]"
         in output
     )
-    assert (
-        "rpgmaker2godot: error: the following arguments are "
-        "required: input, output" in output
-    )
+    # With no arguments at all the run stops on the mandatory
+    # converter.path entries: the warning is displayed even though no
+    # --simple flag has to be validated first anymore.
+    assert "Missing required configuration entries" in output
+    assert "input, output" in output
     assert "┌" in captured.out
     assert "└" in captured.out
 
@@ -622,12 +650,16 @@ def test_unrecognized_arguments_report_usage(
     tmp_path: Path,
     capsys,
 ) -> None:
-    # Valid positionals plus an unknown option: argparse only
-    # reports unrecognized arguments once required ones are filled.
+    # With no positional argument left (the converter paths live in
+    # the configuration file), argparse reports the unknown option
+    # straight away.
+    write_converter_config(
+        str(tmp_path),
+        str(tmp_path / "output"),
+    )
+
     exit_code = main(
         [
-            str(tmp_path),
-            str(tmp_path / "output"),
             "--bogus",
         ]
     )
@@ -641,14 +673,20 @@ def test_unrecognized_arguments_report_usage(
     )
 
 
-def test_missing_simple_flag_reports_usage(
+def test_removed_simple_option_reports_usage(
     tmp_path: Path,
     capsys,
 ) -> None:
+    """--simple has been removed: passing it is a usage error."""
+
+    write_converter_config(
+        str(tmp_path),
+        str(tmp_path / "output"),
+    )
+
     exit_code = main(
         [
-            str(tmp_path),
-            str(tmp_path / "output"),
+            "--simple",
         ]
     )
 
@@ -656,8 +694,8 @@ def test_missing_simple_flag_reports_usage(
 
     assert exit_code == 2
     assert (
-        "rpgmaker2godot: error: Only --simple mode is currently "
-        "supported." in flatten(captured.out)
+        "rpgmaker2godot: error: unrecognized arguments: --simple"
+        in flatten(captured.out)
     )
 
 
@@ -729,6 +767,12 @@ def test_conversion_records_stay_inside_the_test_sandbox(
     (working_directory / "rpgmaker2godot.yaml").write_text(
         yaml.safe_dump(
             {
+                "converter": {
+                    "path": {
+                        "input": str(input_directory),
+                        "output": str(output_directory),
+                    },
+                },
                 "logger": {
                     "enabled": True,
                     "level": "DEBUG",
@@ -742,9 +786,6 @@ def test_conversion_records_stay_inside_the_test_sandbox(
 
     exit_code = main(
         [
-            "--simple",
-            str(input_directory),
-            str(output_directory),
         ]
     )
     capsys.readouterr()
@@ -788,12 +829,14 @@ def test_tolerance_option_merges_noisy_a4_tiles(
     sheet.save(input_directory / "Inside_A4.png")
     sheet.close()
 
+    write_converter_config(
+        str(input_directory),
+        str(tmp_path / "default"),
+    )
+
     default_exit = main(
         [
-            "--simple",
             "--no-merge",
-            str(input_directory),
-            str(tmp_path / "default"),
         ]
     )
 
@@ -802,14 +845,16 @@ def test_tolerance_option_merges_noisy_a4_tiles(
     default_output = capsys.readouterr().out
     assert "Inside_A4: 2 tiles from 1 sheet" in default_output
 
+    write_converter_config(
+        str(input_directory),
+        str(tmp_path / "tolerant"),
+    )
+
     tolerant_exit = main(
         [
-            "--simple",
             "--no-merge",
             "--tolerance",
             "1",
-            str(input_directory),
-            str(tmp_path / "tolerant"),
         ]
     )
 
@@ -828,13 +873,15 @@ def test_negative_tolerance_reports_usage(
 ) -> None:
     """A negative --tolerance is a usage error (exit code 2)."""
 
+    write_converter_config(
+        str(tmp_path),
+        str(tmp_path / "output"),
+    )
+
     exit_code = main(
         [
-            "--simple",
             "--tolerance",
             "-1",
-            str(tmp_path),
-            str(tmp_path / "output"),
         ]
     )
 
@@ -857,12 +904,14 @@ def test_no_terrains_flag_skips_terrain_generation(
         size=(768, 720),
     )
 
+    write_converter_config(
+        str(input_directory),
+        str(tmp_path / "default"),
+    )
+
     default_exit = main(
         [
-            "--simple",
             "--no-merge",
-            str(input_directory),
-            str(tmp_path / "default"),
         ]
     )
 
@@ -876,13 +925,15 @@ def test_no_terrains_flag_skips_terrain_generation(
     assert 'terrain_set_0/terrain_0/name = "Wall top 1"' in default_content
     assert "0:0/0/terrains_peering_bit/" in default_content
 
+    write_converter_config(
+        str(input_directory),
+        str(tmp_path / "skipped"),
+    )
+
     skipped_exit = main(
         [
-            "--simple",
             "--no-merge",
             "--no-terrains",
-            str(input_directory),
-            str(tmp_path / "skipped"),
         ]
     )
 
@@ -915,13 +966,15 @@ def test_tileset_option_converts_only_named_tileset(
                 color=color,
             )
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
-            "--simple",
             "--tileset",
             "Outside",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -949,13 +1002,15 @@ def test_tileset_option_accepts_png_extension(
                 f"{tileset}_{sheet_type}.png",
             )
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
-            "--simple",
             "--tileset",
             "Outside.png",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -979,14 +1034,16 @@ def test_tileset_option_single_sheet_file(
             f"Inside_{sheet_type}.png",
         )
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
-            "--simple",
             "--no-merge",
             "--tileset",
             "Inside_B.png",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -1012,14 +1069,16 @@ def test_tileset_option_defaults_to_png_extension(
             f"Inside_{sheet_type}.png",
         )
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
-            "--simple",
             "--no-merge",
             "--tileset",
             "Inside_B",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -1044,13 +1103,15 @@ def test_missing_tileset_displays_warning(
         "Inside_B.png",
     )
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
-            "--simple",
             "--tileset",
             "Ghost",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -1099,6 +1160,12 @@ def test_tileset_output_path_comes_from_the_configuration(
     (working_directory / "rpgmaker2godot.yaml").write_text(
         yaml.safe_dump(
             {
+                "converter": {
+                    "path": {
+                        "input": str(input_directory),
+                        "output": str(output_directory),
+                    },
+                },
                 "tileset": {
                     "path": "world/tilesets",
                 },
@@ -1109,9 +1176,6 @@ def test_tileset_output_path_comes_from_the_configuration(
 
     exit_code = main(
         [
-            "--simple",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -1149,6 +1213,12 @@ def test_config_option_defaults_to_yaml_extension(
     (Path.cwd() / "custom.yaml").write_text(
         yaml.safe_dump(
             {
+                "converter": {
+                    "path": {
+                        "input": str(input_directory),
+                        "output": str(output_directory),
+                    },
+                },
                 "tileset": {
                     "path": "world/tilesets",
                 },
@@ -1159,11 +1229,8 @@ def test_config_option_defaults_to_yaml_extension(
 
     exit_code = main(
         [
-            "--simple",
             "--config",
             "custom",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -1199,6 +1266,12 @@ def test_config_option_accepts_the_yaml_extension(
     (Path.cwd() / "custom.yaml").write_text(
         yaml.safe_dump(
             {
+                "converter": {
+                    "path": {
+                        "input": str(input_directory),
+                        "output": str(output_directory),
+                    },
+                },
                 "tileset": {
                     "path": "world/tilesets",
                 },
@@ -1209,11 +1282,8 @@ def test_config_option_accepts_the_yaml_extension(
 
     exit_code = main(
         [
-            "--simple",
             "--config",
             "custom.yaml",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -1232,21 +1302,12 @@ def test_missing_config_file_displays_warning(
 ) -> None:
     """--config ghost warns and converts nothing (exit code 2)."""
 
-    input_directory = tmp_path / "tilesets"
     output_directory = tmp_path / "output"
-
-    create_sheet(
-        input_directory,
-        "Inside_B.png",
-    )
 
     exit_code = main(
         [
-            "--simple",
             "--config",
             "ghost",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -1269,8 +1330,147 @@ def test_missing_config_file_displays_warning(
     assert not output_directory.exists()
 
 
+def test_invalid_yaml_config_displays_warning(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    """An unparsable configuration file is reported, never ignored."""
+
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    create_sheet(
+        input_directory,
+        "Inside_B.png",
+    )
+
+    # A backslash inside a double-quoted scalar is invalid YAML —
+    # a very common Windows mistake.
+    (Path.cwd() / "broken.yaml").write_text(
+        'converter:\n  path:\n    input: "C:\\RPG Maker\\img"\n',
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "--config",
+            "broken",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+
+    output = flatten(captured.out.replace("│", " "))
+
+    # The parse failure is reported verbatim, not turned into a
+    # misleading "missing entries" complaint.
+    assert "Configuration file 'broken.yaml' is invalid" in output
+    assert "unknown escape character" in output
+
+    # Nothing was converted.
+    assert not output_directory.exists()
+
+
+def test_missing_converter_paths_displays_warning(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    """Absent converter.path entries are refused with a usage warning."""
+
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    create_sheet(
+        input_directory,
+        "Inside_B.png",
+    )
+
+    # A configuration file without any converter section.
+    (Path.cwd() / "nopath.yaml").write_text(
+        yaml.safe_dump({}),
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "--config",
+            "nopath",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+
+    output = flatten(captured.out.replace("│", " "))
+
+    # Both entries are reported, together with the file at fault.
+    assert "Missing required configuration entries" in output
+    assert "nopath.yaml" in output
+    assert "input, output" in output
+    assert "converter.path section" in output
+
+    # The message sits inside a warning panel frame.
+    assert "┌" in captured.out
+    assert "└" in captured.out
+
+    # Nothing was converted.
+    assert not output_directory.exists()
+
+
+def test_one_missing_converter_path_displays_warning(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    """A single absent entry is reported on its own."""
+
+    input_directory = tmp_path / "tilesets"
+    output_directory = tmp_path / "output"
+
+    create_sheet(
+        input_directory,
+        "Inside_B.png",
+    )
+
+    (Path.cwd() / "half.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "converter": {
+                    "path": {
+                        "input": str(input_directory),
+                    },
+                },
+            },
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "--config",
+            "half",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+
+    output = flatten(captured.out.replace("│", " "))
+
+    assert "Missing required configuration entries" in output
+    assert "output" in output
+    assert "input, output" not in output
+
+    # Nothing was converted.
+    assert not output_directory.exists()
+
+
 def test_config_option_applies_the_logger_section(
     tmp_path: Path,
+    capsys,
 ) -> None:
     """The logger section of the --config file activates file logging."""
 
@@ -1285,6 +1485,12 @@ def test_config_option_applies_the_logger_section(
     (Path.cwd() / "logged.yaml").write_text(
         yaml.safe_dump(
             {
+                "converter": {
+                    "path": {
+                        "input": str(input_directory),
+                        "output": str(output_directory),
+                    },
+                },
                 "logger": {
                     "enabled": True,
                     "level": "DEBUG",
@@ -1298,15 +1504,17 @@ def test_config_option_applies_the_logger_section(
 
     exit_code = main(
         [
-            "--simple",
             "--config",
             "logged",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
     assert exit_code == 0
+
+    # The named configuration file is announced as the one in use.
+    output = flatten(capsys.readouterr().out.replace("│", " "))
+
+    assert "Configuration file: logged.yaml (--config logged)" in output
 
     # The logger section of the named file replaced the default
     # rpgmaker2godot.yaml lookup: the records go to the file it sets.

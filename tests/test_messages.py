@@ -1,6 +1,7 @@
 import re
 
 from rpgmaker2godot.utils.messages import (
+    display_info,
     display_program_banner,
     display_title,
     display_warning,
@@ -79,3 +80,27 @@ def test_display_warning_renders_message_inside_a_panel(
     # Panel border characters are present.
     assert "┌" in captured.out
     assert "└" in captured.out
+
+
+def test_display_info_renders_message_inside_a_panel(
+    capsys,
+) -> None:
+    display_info("Configuration file: custom.yaml")
+
+    captured = capsys.readouterr()
+
+    assert "Configuration file: custom.yaml" in captured.out
+
+    # Panel border characters are present.
+    assert "┌" in captured.out
+    assert "└" in captured.out
+
+
+def test_display_info_escapes_square_brackets(capsys) -> None:
+    display_info("[not markup]")
+
+    captured = capsys.readouterr()
+
+    # The brackets survive literally instead of being swallowed as
+    # rich markup tags.
+    assert "[not markup]" in captured.out

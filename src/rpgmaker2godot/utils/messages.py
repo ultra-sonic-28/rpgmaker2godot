@@ -41,6 +41,32 @@ def display_title(
     console.print("")
 
 
+def display_info(
+    message: str,
+) -> None:
+    """Display an informational message inside a panel.
+
+    Bright white text on a dark cyan background with a matching
+    border — used for neutral status information such as the
+    configuration file taken into account by the run.
+
+    The message is plain text: it is escaped so that square brackets
+    are never interpreted as rich markup tags.
+    """
+
+    console = Console()
+
+    title = Panel(
+        escape(message),
+        style="bright_white on dark_cyan",
+        border_style="dark_cyan",
+        expand=True,
+    )
+
+    console.print("")
+    console.print(title)
+
+
 def display_warning(
     message: str,
 ) -> None:

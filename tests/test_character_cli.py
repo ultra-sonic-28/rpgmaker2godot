@@ -5,7 +5,10 @@ import yaml
 from PIL import Image
 
 from rpgmaker2godot.cli import main
-from tests.helpers import PROGRAM_BANNER_VERSION
+from tests.helpers import (
+    PROGRAM_BANNER_VERSION,
+    write_converter_config,
+)
 
 
 def create_character_sheet(
@@ -37,12 +40,15 @@ def test_character_mode_exports_spriteframes(
     create_character_sheet(input_directory, "player-1.png")
     create_character_sheet(input_directory, "player-2.png")
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
             "--mode",
             "CHARACTER",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -85,12 +91,15 @@ def test_character_mode_is_case_insensitive(tmp_path: Path) -> None:
 
     create_character_sheet(input_directory, "player-1.png")
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
             "--mode",
             "character",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -102,18 +111,23 @@ def test_character_mode_rejects_simple(
     tmp_path: Path,
     capsys,
 ) -> None:
+    """--simple has been removed: passing it is a usage error."""
+
     input_directory = tmp_path / "characters"
     output_directory = tmp_path / "output"
 
     create_character_sheet(input_directory, "player-1.png")
+
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
 
     exit_code = main(
         [
             "--mode",
             "CHARACTER",
             "--simple",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -123,7 +137,10 @@ def test_character_mode_rejects_simple(
 
     output = flatten(captured.out.replace("│", " "))
 
-    assert "--simple applies to tileset conversion only." in output
+    assert (
+        "rpgmaker2godot: error: unrecognized arguments: --simple"
+        in output
+    )
     assert not output_directory.exists()
 
 
@@ -136,12 +153,15 @@ def test_character_mode_rejects_unknown_mode(
 
     create_character_sheet(input_directory, "player-1.png")
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
             "--mode",
             "GHOST",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -164,6 +184,11 @@ def test_character_mode_warns_about_tileset_only_options(
 
     create_character_sheet(input_directory, "player-1.png")
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
             "--mode",
@@ -171,8 +196,6 @@ def test_character_mode_warns_about_tileset_only_options(
             "--no-merge",
             "--tileset",
             "Inside",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -200,12 +223,15 @@ def test_character_mode_reports_invalid_sheets(
     # 50px wide: not divisible by the 3 frame columns.
     Image.new("RGBA", (50, 144)).save(input_directory / "broken.png")
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
             "--mode",
             "CHARACTER",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -229,12 +255,15 @@ def test_character_mode_without_character_sheet_fails(
 
     input_directory.mkdir(parents=True)
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
             "--mode",
             "CHARACTER",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 
@@ -258,21 +287,27 @@ def test_default_mode_is_tileset(tmp_path: Path, capsys) -> None:
         input_directory / "Inside_B.png"
     )
 
+    write_converter_config(
+        str(input_directory),
+        str(output_directory),
+    )
+
     exit_code = main(
         [
-            str(input_directory),
-            str(output_directory),
+
         ]
     )
 
     captured = capsys.readouterr()
 
-    assert exit_code == 2
+    # The tileset pipeline runs by default: no option is required.
+    assert exit_code == 0
 
-    output = flatten(captured.out.replace("│", " "))
+    assert (output_directory / "Inside.tres").exists()
+    assert (output_directory / "Inside.png").exists()
 
-    # The tileset pipeline still requires --simple.
-    assert "Only --simple mode is currently supported." in output
+    assert "Analyzing input directory" in captured.out
+    assert "Exporting Godot resources" in captured.out
 
 
 def test_character_mode_applies_the_configuration_file(
@@ -289,6 +324,12 @@ def test_character_mode_applies_the_configuration_file(
     (working_directory / "rpgmaker2godot.yaml").write_text(
         yaml.safe_dump(
             {
+                "converter": {
+                    "path": {
+                        "input": str(input_directory),
+                        "output": str(output_directory),
+                    },
+                },
                 "character": {
                     "path": "entities/player/sprites",
                     "idle": {
@@ -316,8 +357,6 @@ def test_character_mode_applies_the_configuration_file(
         [
             "--mode",
             "CHARACTER",
-            str(input_directory),
-            str(output_directory),
         ]
     )
 

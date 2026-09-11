@@ -5,44 +5,54 @@ CLI tool written in Python 3.13+ to convert RPG Maker MV/MZ tilesets into Godot 
 ## Command-line options
 
 ```
-rpgmaker2godot [-h] [--mode {TILESET,CHARACTER}] [--simple]
+rpgmaker2godot [-h] [--mode {TILESET,CHARACTER}]
                [--tileset TILESET] [--no-merge] [--tolerance TOLERANCE]
-               [--no-terrains] [--config CONFIG] input output
+               [--no-terrains] [--config CONFIG]
 ```
 
 Each option is described below with an example; `rpgmaker2godot --help`
 prints the same reference inline.
 
-### `input` — input directory (positional)
+### `converter.path` — input and output directories (configuration)
 
-Directory containing the RPG Maker MV/MZ tilesheets to convert: the
-`A1.png`, `A2.png`, `A3.png`, `A4.png`, `A5.png` and `B.png`–`E.png` sheets, optionally prefixed
-(e.g. `world_B.png`), typically a project's `img/tilesets/` folder. A
-`Tilesets.json` placed in the same directory is used to resolve the
-collision flags.
+The source and destination directories are no longer command-line
+arguments: they are **mandatory** entries of the configuration file
+(`rpgmaker2godot.yaml`, or the file named by `--config`). Their
+presence is checked before the detection and analysis pipeline starts;
+when either is missing a warning is displayed and nothing is
+converted.
 
-```bash
-rpgmaker2godot --simple "C:/RPG Maker/MyProject/img/tilesets" output
+* `converter.path.input` — directory containing the RPG Maker MV/MZ
+  tilesheets to convert: the `A1.png`, `A2.png`, `A3.png`, `A4.png`,
+  `A5.png` and `B.png`–`E.png` sheets, optionally prefixed (e.g.
+  `world_B.png`), typically a project's `img/tilesets/` folder. A
+  `Tilesets.json` placed in the same directory is used to resolve the
+  collision flags.
+* `converter.path.output` — directory receiving the generated Godot
+  resources: one `<tileset>.png` atlas and one `<tileset>.tres`
+  TileSet per converted tileset. It is created when missing.
+
+```yaml
+# Converter configuration
+converter:
+  # INPUT and OUTPUT path configuration
+  path:
+    input: "./test-data"
+    output: "./output"
 ```
 
-### `output` — output directory (positional)
-
-Directory receiving the generated Godot resources: one `<tileset>.png`
-atlas and one `<tileset>.tres` TileSet per converted tileset. It is
-created when missing.
-
 ```bash
-rpgmaker2godot --simple img/tilesets "C:/Godot/MyGame/assets/tilesets"
+rpgmaker2godot
 ```
 
 ### `--mode MODE`
 
-Selects what the input directory contains and which pipeline runs.
+Selects what the input directory (converter.path.input) contains and
+which pipeline runs.
 The value is case-insensitive:
 
 * `TILESET` (default) — the directory holds RPG Maker MV/MZ
-  tilesheets, converted into Godot `TileSet` resources for maps
-  (this mode requires `--simple`);
+  tilesheets, converted into Godot `TileSet` resources for maps;
 * `CHARACTER` — the directory holds character spritesheets
   (`player-1.png`, `player-2.png`, …) storing their animations
   natively (RPG Maker character sheets are **not** supported — they
@@ -52,18 +62,7 @@ The value is case-insensitive:
   layout.
 
 ```bash
-rpgmaker2godot --mode CHARACTER img/characters output
-```
-
-### `--simple`
-
-Selects the simple conversion mode (`A1`–`E`, plus the `A1`/`A2`/`A3`/`A4`
-autotile unfolding) — the only mode currently supported, so the flag
-is required for every tileset run (`--mode TILESET`, the default).
-It is not used — and rejected — in `--mode CHARACTER`.
-
-```bash
-rpgmaker2godot --simple img/tilesets output
+rpgmaker2godot --mode CHARACTER (via converter.path)
 ```
 
 ### `--tileset TILESET`
@@ -78,7 +77,7 @@ Without the option, every tileset found in the input directory is
 converted.
 
 ```bash
-rpgmaker2godot --simple --tileset Outside img/tilesets output
+rpgmaker2godot --tileset Outside (via converter.path)
 ```
 
 ### `--no-merge`
@@ -91,7 +90,7 @@ autotile sheets (`A1`–`A4`) merge into `<prefix>_Autotile`, while the
 normal sheets (`A5`, `B`–`E`) merge into `<prefix>`.
 
 ```bash
-rpgmaker2godot --simple --no-merge img/tilesets output
+rpgmaker2godot --no-merge (via converter.path)
 ```
 
 ### `--tolerance TOLERANCE`
@@ -101,7 +100,7 @@ pixels, discarding source-image noise. Defaults to `0` (byte-exact
 match) and must be `>= 0`.
 
 ```bash
-rpgmaker2godot --simple --tolerance 8 img/tilesets output
+rpgmaker2godot --tolerance 8 (via converter.path)
 ```
 
 ### `--no-terrains`
@@ -111,7 +110,7 @@ Skips the Godot terrain generation for the unfolded A1/A2/A3/A4 autotiles
 the generated `.tres` then contains no `terrain_set_*` metadata.
 
 ```bash
-rpgmaker2godot --simple --no-terrains img/tilesets output
+rpgmaker2godot --no-terrains (via converter.path)
 ```
 
 ### `--config CONFIG`
@@ -120,12 +119,14 @@ Loads the configuration from the `CONFIG` file instead of the default
 `rpgmaker2godot.yaml` looked up in the working directory. The `.yaml`
 extension is assumed when omitted, so `--config prod` loads `prod.yaml`
 (relative paths resolve against the working directory; absolute paths
-are accepted as-is). Every section of that file — `logger`, `tileset`,
-`character` — drives the whole run. When the file does not exist, a
+are accepted as-is). Every section of that file — `converter`,
+`logger`, `tileset`, `character` — drives the whole run. The
+`converter.path.input` and `converter.path.output` entries are
+mandatory. When the file does not exist, a
 warning is displayed and nothing is converted.
 
 ```bash
-rpgmaker2godot --simple --config prod img/tilesets output
+rpgmaker2godot --config prod
 ```
 
 ### `-h`, `--help`
@@ -283,6 +284,13 @@ configures the whole tool; the `--config` option (see
 instead:
 
 ```yaml
+# Converter configuration
+converter:
+  # INPUT and OUTPUT path configuration
+  path:
+    input: "./test-data"
+    output: "./output"
+
 # Configuration for logging
 logger:
   enabled: true
@@ -747,7 +755,7 @@ The pipeline then runs in three steps:
    full sheet — ready to be assigned to an `AnimatedSprite2D`.
 
 ```bash
-rpgmaker2godot --mode CHARACTER "C:/RPG Maker/MyProject/img/characters" "C:/Godot/MyGame/assets/characters"
+rpgmaker2godot --mode CHARACTER
 ```
 
 The output directory therefore receives, per character:

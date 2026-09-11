@@ -1,3 +1,10 @@
+# Converter configuration
+converter:
+  # INPUT and OUTPUT path configuration
+  path:
+    input: "./test-data/tilesets"
+    output: "./output"
+
 # Configuration for logging
 logger:
   enabled: true

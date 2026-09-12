@@ -198,7 +198,8 @@ python -m mypy
 ### Architecture
 ```text
 src/rpgmaker2godot/
-├── cli.py                          # CLI entry point (main) — reads Tilesets.json to resolve collisions
+├── cli.py                          # CLI entry point (main) — wires the parser, the configuration checks and the pipelines
+├── cli_helper.py                    # CLI helpers — parser classes, rendering helpers and the pipeline steps of both modes
 ├── analysis/                       # PNG sheet detection (TilesetDetector, CharacterDetector)
 │   ├── detector.py                 # TilesetDetector: scans the input directory for RPG Maker sheets
 │   │                               #   (A1/A2/A3/A4/A5/B/C/D/E.png), validates their dimensions against the tile
